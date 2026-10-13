@@ -10,7 +10,8 @@ import { fetchEvents, formatDate } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CONTENT_MODES, CONTENT_TYPES, EMPTY_CONTENT_FILTERS, filterContents } from "@/lib/content-filters";
+import { EMPTY_CONTENT_FILTERS, filterContents } from "@/lib/content-filters";
+import { useContentOptions } from "@/lib/content-options";
 import { DEFAULT_SHARE_IMAGE, SHARE_ORIGIN } from "@/lib/share-image";
 
 const HOME_SHARE_IMAGE = DEFAULT_SHARE_IMAGE;
@@ -50,6 +51,7 @@ function shareEvent(e: React.MouseEvent, id: string, title: string) {
 function Index() {
   const { data: events, isLoading, isError } = useQuery({ queryKey: ["events"], queryFn: fetchEvents });
   const [filters, setFilters] = useState(EMPTY_CONTENT_FILTERS);
+  const { modes, types } = useContentOptions();
   const hasFilters = filters.mode !== "all" || filters.type !== "all" || !!filters.caller.trim();
 
   const upcoming = filterContents((events ?? []).filter((e) => new Date(e.starts_at).getTime() > Date.now() - 3 * 3600_000), filters);
@@ -73,9 +75,9 @@ function Index() {
         </div>
         <div className="mb-6 space-y-4 border-b border-border pb-6">
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="min-w-0 space-y-2"><Label htmlFor="filter-mode">PVP ou PVE</Label><Select value={filters.mode} onValueChange={mode => setFilters(prev => ({ ...prev, mode }))}><SelectTrigger id="filter-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os modos</SelectItem>{CONTENT_MODES.map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}</SelectContent></Select></div>
+            <div className="min-w-0 space-y-2"><Label htmlFor="filter-mode">PVP ou PVE</Label><Select value={filters.mode} onValueChange={mode => setFilters(prev => ({ ...prev, mode }))}><SelectTrigger id="filter-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os modos</SelectItem>{modes.map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}</SelectContent></Select></div>
             <div className="min-w-0 space-y-2"><Label htmlFor="filter-caller">Caller / líder</Label><Input id="filter-caller" type="search" placeholder="Nome de quem lidera" maxLength={80} value={filters.caller} onChange={event => setFilters(prev => ({ ...prev, caller: event.target.value }))} /></div>
-            <div className="min-w-0 space-y-2"><Label htmlFor="filter-type">Tipo de conteúdo</Label><Select value={filters.type} onValueChange={type => setFilters(prev => ({ ...prev, type }))}><SelectTrigger id="filter-type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os tipos</SelectItem>{CONTENT_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select></div>
+            <div className="min-w-0 space-y-2"><Label htmlFor="filter-type">Tipo de conteúdo</Label><Select value={filters.type} onValueChange={type => setFilters(prev => ({ ...prev, type }))}><SelectTrigger id="filter-type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os tipos</SelectItem>{types.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select></div>
           </div>
           <div className="flex min-h-9 flex-wrap items-center justify-between gap-3"><p aria-live="polite" className="text-sm text-muted-foreground">{isLoading ? "Carregando conteúdos..." : `${upcoming.length} ${upcoming.length === 1 ? "conteúdo encontrado" : "conteúdos encontrados"}`}</p><Button variant="ghost" size="sm" disabled={!hasFilters} onClick={() => setFilters(EMPTY_CONTENT_FILTERS)}><X /> Limpar filtros</Button></div>
         </div>

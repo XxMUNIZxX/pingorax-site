@@ -7,7 +7,7 @@ Stack: React + TanStack Start + Tailwind, banco/login/imagens no **Supabase**, h
 ## 1. Criar o banco (Supabase)
 
 1. Crie um projeto em <https://supabase.com> (o plano gratuito serve).
-2. Abra **SQL Editor → New query**, cole todo o conteúdo de [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**. Rode só uma vez, num projeto vazio.
+2. Abra **SQL Editor → New query**, cole todo o conteúdo de [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**. Rode só uma vez, num projeto vazio. Se o seu banco já existia antes dos filtros editáveis, rode apenas `supabase/migrations/0001_content_options.sql`.
 3. Em **Authentication → Providers → Email**, deixe o login por email ligado. Se quiser que a pessoa entre sem confirmar o email, desligue "Confirm email" (por padrão ele vem ligado).
 4. Em **Authentication → URL Configuration**, coloque o endereço do site em *Site URL* (ex.: `https://pingorax.online`) e o mesmo endereço, com `/**` no fim, em *Redirect URLs*.
 5. Em **Project Settings → API**, copie a **Project URL** e a chave **anon / publishable**.
@@ -46,6 +46,7 @@ Ou pelo terminal: `npx wrangler login` e depois `npm run deploy`.
 - Entre em `/admin` → **Imagem de compartilhamento** e envie a imagem que aparece quando o link é colado no Discord/WhatsApp. Enquanto não enviar, o site usa `public/og-banner.jpg`.
 - Em `/admin` → **Acessos da equipe** você libera outras pessoas como *criadoras*. A pessoa precisa criar conta antes.
 - O **Catálogo de armas** já vem com 30 armas; você pode adicionar mais pelo código do item do Albion.
+- Em `/admin` → **Filtros dos conteúdos** você adiciona, renomeia e remove os modos (PVP/PVE) e os tipos de conteúdo que aparecem nos filtros e no editor.
 
 ## Como o acesso funciona
 
