@@ -13,7 +13,7 @@ import { WeaponIconInput } from "@/components/weapon-icon-input";
 import { WeaponCatalogPicker } from "@/components/weapon-catalog-picker";
 import { uploadWeaponIcon } from "@/lib/weapon-icons";
 import { EventEditorsDialog } from "@/components/event-editors-dialog";
-import { CONTENT_MODES, CONTENT_TYPES } from "@/lib/content-filters";
+import { useContentOptions, withCurrentValue } from "@/lib/content-options";
 import { Plus, X } from "lucide-react";
 
 type WeaponDraft = { id?: string; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; iconFile?: File | undefined };
@@ -108,6 +108,9 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
 
 function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
+  const options = useContentOptions();
+  const modeList = withCurrentValue(options.modes, draft.mode);
+  const typeList = withCurrentValue(options.types, draft.content_type);
   const set = (p: Partial<Draft>) => setDraft({ ...draft, ...p });
   const setW = (i: number, p: Partial<WeaponDraft>) => set({ weapons: draft.weapons.map((w, j) => (j === i ? { ...w, ...p } : w)) });
   const totalSlots = draft.weapons.reduce((s, w) => s + (w.slots || 0), 0);
@@ -161,7 +164,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
             <SelectTrigger id="content-mode"><SelectValue placeholder="Selecione o modo" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nenhum</SelectItem>
-              {CONTENT_MODES.map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}
+              {modeList.map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -171,7 +174,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
             <SelectTrigger id="content-type"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Nenhum</SelectItem>
-              {CONTENT_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+              {typeList.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

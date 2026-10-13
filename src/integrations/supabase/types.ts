@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_options: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
       event_editors: {
         Row: {
           created_at: string
@@ -224,6 +248,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_rename_content_option: {
+        Args: { _id: string; _name: string }
+        Returns: string
+      }
       admin_panel_directory: {
         Args: never
         Returns: {
