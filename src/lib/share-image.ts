@@ -1,6 +1,6 @@
 const configuredOrigin = import.meta.env["VITE_SITE_URL"] as string | undefined;
 export const SHARE_ORIGIN = (configuredOrigin || "https://pingorax.online").replace(/\/+$/, "");
-export const DEFAULT_SHARE_IMAGE = `${SHARE_ORIGIN}/og-banner.jpg`;
+export const DEFAULT_SHARE_IMAGE = `${SHARE_ORIGIN}/og-banner.jpg?v=2`;
 
 export function shareImageUrl(path?: string | null) {
   return path ? `${SHARE_ORIGIN}/api/public/share-image?v=${encodeURIComponent(path.split("/").pop() ?? "")}` : DEFAULT_SHARE_IMAGE;
