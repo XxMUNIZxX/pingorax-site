@@ -67,7 +67,24 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
-  body { line-height: 1.6; }
+  body {
+    line-height: 1.6;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(1100px 620px at 0% 0%, oklch(0.42 0.1 230 / 0.32), transparent 62%),
+      radial-gradient(900px 620px at 100% 100%, oklch(0.36 0.14 295 / 0.34), transparent 62%);
+    background-attachment: fixed;
+  }
+  /* Marca d'água do logo, fixa no canto, atrás de todo o conteúdo */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url("/logo-watermark.png") no-repeat right -4vw bottom -6vh / min(46vw, 520px) auto;
+    opacity: 0.07;
+  }
   h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; line-height: 1.2; overflow-wrap: anywhere; }
   ::selection { background: var(--primary); color: var(--background); }
   input, textarea, select { color-scheme: dark; }
