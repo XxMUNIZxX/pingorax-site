@@ -101,3 +101,9 @@ export async function fetchBuildUsage(): Promise<Map<string, number>> {
   for (const row of data ?? []) if (row.build_id) usage.set(row.build_id, (usage.get(row.build_id) ?? 0) + 1);
   return usage;
 }
+
+/** Cores do jogo: moldura pelo tier (T4 azul … T8 branco) e brilho pelo encantamento (.1 verde … .4 dourado). */
+const TIER_COLORS: Record<number, string> = { 1: "#8a8f98", 2: "#8a8f98", 3: "#8a8f98", 4: "#4f8fe0", 5: "#d9534f", 6: "#e8873a", 7: "#e9c23b", 8: "#eef1f6" };
+const ENCHANT_COLORS = ["", "#4cd964", "#4aa8ff", "#b46bff", "#ffc83d"];
+export const tierColor = (tier: number) => TIER_COLORS[tier] ?? "#8a8f98";
+export const enchantColor = (enchant: number) => ENCHANT_COLORS[enchant] ?? "";

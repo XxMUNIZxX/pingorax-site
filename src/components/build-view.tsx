@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { BUILD_SLOTS, baseOf, fetchGearCatalog, itemIconUrl, parseGearCode, tierLabel, type SlotKey } from "@/lib/builds";
+import { ItemSlot } from "@/components/item-slot";
+import { BUILD_SLOTS, baseOf, fetchGearCatalog, type SlotKey } from "@/lib/builds";
 import { fetchWeaponCatalog } from "@/lib/weapon-catalog";
 
 /** Nome de qualquer item (arma ou equipamento) pelo código, usando os catálogos. */
@@ -22,26 +23,22 @@ const LAYOUT: (SlotKey | null)[][] = [
 
 export function SlotCell({ slotKey, code, name, size = 72, onClick }: { slotKey: SlotKey; code: string | null; name?: string; size?: number; onClick?: () => void }) {
   const label = BUILD_SLOTS.find((slot) => slot.key === slotKey)?.label ?? slotKey;
-  const parsed = code ? parseGearCode(code) : null;
   const inner = (
     <>
-      <span className="relative flex w-full items-center justify-center" style={{ height: size }}>
-        {code ? <img src={itemIconUrl(code, 128)} alt={name ?? label} loading="lazy" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-muted-foreground">{label}</span>}
-        {parsed && <span className="absolute bottom-0 right-0 rounded bg-background/80 px-1 text-xs font-bold text-gold">{tierLabel(parsed.tier, parsed.enchant)}</span>}
-      </span>
-      {code && name && <span className="mt-1 line-clamp-2 w-full text-center text-xs leading-tight">{name}</span>}
+      <ItemSlot code={code} label={label} size={size} />
+      <span className={`mt-1.5 line-clamp-2 w-full text-center text-xs leading-tight ${code ? "text-foreground" : "text-muted-foreground"}`}>{code && name ? name : label}</span>
     </>
   );
-  const cls = "flex min-w-0 flex-col items-center rounded-md border border-border bg-card p-1.5";
+  const cls = "flex min-w-0 flex-col items-center rounded-lg p-1";
   return onClick
-    ? <button type="button" onClick={onClick} aria-label={`${label}: ${code ? name : "vazio"}`} className={`${cls} hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary`}>{inner}</button>
+    ? <button type="button" onClick={onClick} aria-label={`${label}: ${code ? name : "vazio"}`} className={`${cls} transition hover:bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary`}>{inner}</button>
     : <div className={cls} title={label}>{inner}</div>;
 }
 
 export function BuildGear({ build, size, onPick }: { build: Partial<Record<SlotKey, string | null>>; size?: number; onPick?: (slot: SlotKey) => void }) {
   const nameOf = useItemNames();
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-border bg-gradient-to-b from-background/60 to-background/20 p-3 shadow-inner">
       {LAYOUT.flat().map((key, i) => key
         ? <SlotCell key={key} slotKey={key} code={build[key] ?? null} name={build[key] ? nameOf(build[key]!) : undefined} size={size ?? 72} {...(onPick ? { onClick: () => onPick(key) } : {})} />
         : <div key={`gap-${i}`} aria-hidden />)}
