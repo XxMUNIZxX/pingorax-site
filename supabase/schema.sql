@@ -1027,3 +1027,17 @@ insert into public.gear_catalog (slot, name, category, item_code, min_tier, max_
 ('mount','Terrorbird Selado','Montarias','T7_MOUNT_TERRORBIRD_ADC',7,7,0,380)
 on conflict (slot, item_code) do nothing;
 
+-- ---------------------------------------------------------------------------
+-- Ícone da arma pelo catálogo (migração 0004)
+-- ---------------------------------------------------------------------------
+alter table public.event_weapons
+  add column icon_code text
+  check (icon_code is null or icon_code ~ '^[A-Za-z0-9_@]{2,80}$');
+
+-- Armas de conteúdos que já existem e ainda estão sem imagem: casa pelo nome com o catálogo.
+update public.event_weapons ew
+   set icon_code = wc.item_code
+  from public.weapon_catalog wc
+ where ew.icon_path is null
+   and ew.icon_code is null
+   and lower(btrim(ew.name)) = lower(btrim(wc.name));
