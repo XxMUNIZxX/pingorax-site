@@ -45,7 +45,7 @@ Ou pelo terminal: `npx wrangler login` e depois `npm run deploy`.
 
 - Entre em `/admin` → **Imagem de compartilhamento** e envie a imagem que aparece quando o link é colado no Discord/WhatsApp. Enquanto não enviar, o site usa `public/og-banner.jpg`.
 - Em `/admin` → **Acessos da equipe** você libera outras pessoas como *criadoras*. A pessoa precisa criar conta antes.
-- O **Catálogo de armas** já vem com 30 armas; você pode adicionar mais pelo código do item do Albion.
+- O **Catálogo de armas** já vem com todas as armas principais e de duas mãos do jogo (137); você pode adicionar mais pelo código do item do Albion.
 - Em `/admin` → **Filtros dos conteúdos** você adiciona, renomeia e remove os modos (PVP/PVE) e os tipos de conteúdo que aparecem nos filtros e no editor.
 
 ## Como o acesso funciona
