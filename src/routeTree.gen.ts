@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CriarRouteImport } from './routes/criar'
+import { Route as BuildsRouteImport } from './routes/builds'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
 
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BuildsRoute = BuildsRouteImport.update({
+  id: '/builds',
+  path: '/builds',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CriarRoute = CriarRouteImport.update({
@@ -44,6 +50,7 @@ const ApiPublicShareImageRoute = ApiPublicShareImageRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -66,13 +75,14 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/criar' | '/evento/$id' | '/api/public/share-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/share-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/criar' | '/evento/$id' | '/api/public/share-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/share-image'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/builds'
     | '/criar'
     | '/evento/$id'
     | '/api/public/share-image'
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  BuildsRoute: typeof BuildsRoute
   CriarRoute: typeof CriarRoute
   EventoIdRoute: typeof EventoIdRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
@@ -100,6 +111,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/builds': {
+      id: '/builds'
+      path: '/builds'
+      fullPath: '/builds'
+      preLoaderRoute: typeof BuildsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/criar': {
@@ -129,6 +147,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  BuildsRoute: BuildsRoute,
   CriarRoute: CriarRoute,
   EventoIdRoute: EventoIdRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
