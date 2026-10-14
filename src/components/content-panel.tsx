@@ -14,7 +14,7 @@ import { WeaponCatalogPicker } from "@/components/weapon-catalog-picker";
 import { uploadWeaponIcon } from "@/lib/weapon-icons";
 import { EventEditorsDialog } from "@/components/event-editors-dialog";
 import { useContentOptions, withCurrentValue } from "@/lib/content-options";
-import { fetchBuilds } from "@/lib/builds";
+import { BuildPicker } from "@/components/build-picker";
 import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
 import { Plus, X } from "lucide-react";
 
@@ -108,15 +108,10 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   );
 }
 
-function withCurrentBuild(list: { id: string; name: string; author_name: string | null }[], currentId: string | null | undefined) {
-  return currentId && !list.some((b) => b.id === currentId) ? [...list, { id: currentId, name: "Build atual", author_name: null }] : list;
-}
-
 function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const options = useContentOptions();
   const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
-  const builds = useQuery({ queryKey: ["builds"], queryFn: fetchBuilds, staleTime: 30_000 });
   const modeList = withCurrentValue(options.modes, draft.mode);
   const typeList = withCurrentValue(options.types, draft.content_type);
   const set = (p: Partial<Draft>) => setDraft({ ...draft, ...p });
@@ -218,13 +213,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
               <WeaponIconInput name={w.name} file={w.iconFile} url={previewUrl(w)} onChange={(file) => setW(i, { iconFile: file, icon_path: file ? w.icon_path : null, icon_url: file ? w.icon_url : null, icon_code: null })} />
               <Input list="weapons" className="min-w-0 flex-1 basis-40" aria-label={`Nome da arma ${i + 1}`} placeholder="Nome da arma" value={w.name} onChange={(e) => setName(i, e.target.value)} />
               <Input type="number" min={1} className="w-20 shrink-0" aria-label={`Vagas de ${w.name || "arma"}`} value={w.slots} onChange={(e) => setW(i, { slots: Number(e.target.value) })} />
-              <Select value={w.build_id ?? "none"} onValueChange={(v) => setW(i, { build_id: v === "none" ? null : v })}>
-                <SelectTrigger className="w-44 shrink-0" aria-label={`Build da arma ${w.name || i + 1}`}><SelectValue placeholder="Build" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sem build</SelectItem>
-                  {withCurrentBuild(builds.data ?? [], w.build_id).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}{b.author_name ? ` — ${b.author_name}` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <BuildPicker value={w.build_id} weaponName={w.name} weaponCode={w.icon_code} onChange={(id) => setW(i, { build_id: id })} />
                <Button variant="ghost" size="icon" aria-label={`Remover arma ${i + 1}`} title={`Remover arma ${i + 1}`} onClick={() => set({ weapons: draft.weapons.filter((_, j) => j !== i) })}><X /></Button>
             </div>
           ))}
