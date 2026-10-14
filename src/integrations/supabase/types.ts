@@ -128,6 +128,7 @@ export type Database = {
         Row: {
           build_id: string | null
           event_id: string
+          icon_code: string | null
           icon_path: string | null
           id: string
           name: string
@@ -137,6 +138,7 @@ export type Database = {
         Insert: {
           build_id?: string | null
           event_id: string
+          icon_code?: string | null
           icon_path?: string | null
           id?: string
           name: string
@@ -146,6 +148,7 @@ export type Database = {
         Update: {
           build_id?: string | null
           event_id?: string
+          icon_code?: string | null
           icon_path?: string | null
           id?: string
           name?: string

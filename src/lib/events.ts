@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { resolveWeaponIcons } from "@/lib/weapon-icons";
+import { catalogIconUrl } from "@/lib/weapon-catalog";
 import { fetchBuildsByIds, type Build } from "@/lib/builds";
 
 export const ALBION_WEAPONS = [
@@ -9,7 +10,7 @@ export const ALBION_WEAPONS = [
   "Escudo / Tank", "Arma de Suporte",
 ];
 
-export type EventWeapon = { id: string; name: string; slots: number; position: number; icon_path: string | null; icon_url?: string | null; build_id: string | null; build?: Build | null };
+export type EventWeapon = { id: string; name: string; slots: number; position: number; icon_path: string | null; icon_code: string | null; icon_url?: string | null; build_id: string | null; build?: Build | null };
 export type Signup = { id: string; nick: string; weapon_id: string; created_at: string };
 export type GameEvent = {
   id: string;
@@ -22,7 +23,7 @@ export type GameEvent = {
   signups: Signup[];
 };
 
-const SELECT = "id,created_by,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position,icon_path,build_id),signups(id,nick,weapon_id,created_at)";
+const SELECT = "id,created_by,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position,icon_path,icon_code,build_id),signups(id,nick,weapon_id,created_at)";
 
 async function withIcons(events: GameEvent[]) {
   const buildIds = [...new Set(events.flatMap((event) => event.event_weapons.flatMap((weapon) => weapon.build_id ? [weapon.build_id] : [])))];
@@ -34,7 +35,7 @@ async function withIcons(events: GameEvent[]) {
   const byId = new Map(builds.map((build) => [build.id, build]));
   return events.map((event) => ({ ...event, event_weapons: event.event_weapons.map((weapon) => ({
     ...weapon,
-    icon_url: weapon.icon_path ? urls.get(weapon.icon_path) ?? null : null,
+    icon_url: (weapon.icon_path ? urls.get(weapon.icon_path) : undefined) ?? (weapon.icon_code ? catalogIconUrl(weapon.icon_code) : null),
     build: weapon.build_id ? byId.get(weapon.build_id) ?? null : null,
   })) }));
 }

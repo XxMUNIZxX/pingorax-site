@@ -15,9 +15,10 @@ import { uploadWeaponIcon } from "@/lib/weapon-icons";
 import { EventEditorsDialog } from "@/components/event-editors-dialog";
 import { useContentOptions, withCurrentValue } from "@/lib/content-options";
 import { fetchBuilds } from "@/lib/builds";
+import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
 import { Plus, X } from "lucide-react";
 
-type WeaponDraft = { id?: string; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
+type WeaponDraft = { id?: string; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
 type Draft = { id?: string; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
@@ -46,7 +47,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   function edit(e: GameEvent) {
     setDraft({
       id: e.id, title: e.title, description: e.description ?? "", starts_at: toLocalInput(e.starts_at), max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
-      weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ id: w.id, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, build_id: w.build_id })),
+      weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ id: w.id, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
     });
   }
 
@@ -114,11 +115,23 @@ function withCurrentBuild(list: { id: string; name: string; author_name: string 
 function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const options = useContentOptions();
+  const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
   const builds = useQuery({ queryKey: ["builds"], queryFn: fetchBuilds, staleTime: 30_000 });
   const modeList = withCurrentValue(options.modes, draft.mode);
   const typeList = withCurrentValue(options.types, draft.content_type);
   const set = (p: Partial<Draft>) => setDraft({ ...draft, ...p });
   const setW = (i: number, p: Partial<WeaponDraft>) => set({ weapons: draft.weapons.map((w, j) => (j === i ? { ...w, ...p } : w)) });
+  const norm = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const byName = new Map((catalog.data ?? []).map((c) => [norm(c.name), c] as const));
+  const hasOwnIcon = (w: WeaponDraft) => !!(w.iconFile || w.icon_path);
+  /** Nome igual ao de uma arma do catálogo => usa a imagem dela automaticamente. */
+  const setName = (i: number, name: string) => {
+    const w = draft.weapons[i]; if (!w) return;
+    const match = byName.get(norm(name));
+    setW(i, hasOwnIcon(w) ? { name } : { name, icon_code: match?.item_code ?? null, icon_url: null });
+  };
+  const pickCatalog = (i: number, weapon: CatalogWeapon) => setW(i, { name: weapon.name, icon_code: weapon.item_code, iconFile: undefined, icon_path: null, icon_url: null });
+  const previewUrl = (w: WeaponDraft) => w.icon_url ?? (w.icon_code ? catalogIconUrl(w.icon_code) : null);
   const totalSlots = draft.weapons.reduce((s, w) => s + (w.slots || 0), 0);
 
   async function save() {
@@ -146,7 +159,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
     }
     for (const [i, w] of draft.weapons.entries()) {
       const iconPath = w.iconFile ? await uploadWeaponIcon(w.iconFile) : w.icon_path ?? null;
-      const row = { event_id: eventId, name: w.name, slots: Math.max(1, w.slots), position: i, icon_path: iconPath, build_id: w.build_id ?? null };
+      const row = { event_id: eventId, name: w.name, slots: Math.max(1, w.slots), position: i, icon_path: iconPath, icon_code: iconPath ? null : w.icon_code ?? null, build_id: w.build_id ?? null };
       const { error } = w.id ? await supabase.from("event_weapons").update(row).eq("id", w.id) : await supabase.from("event_weapons").insert(row);
       if (error) throw error;
     }
@@ -197,13 +210,13 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
           <Link to="/builds" className="text-sm text-primary hover:underline">Criar uma build</Link>
           <span className={`text-sm ${totalSlots < draft.max_players ? "text-destructive" : "text-muted-foreground"}`}>{totalSlots} vagas nas armas / {draft.max_players} jogadores</span>
         </div>
-        <datalist id="weapons">{ALBION_WEAPONS.map((w) => <option key={w} value={w} />)}</datalist>
+        <datalist id="weapons">{[...new Set([...(catalog.data ?? []).map((c) => c.name), ...ALBION_WEAPONS])].map((w) => <option key={w} value={w} />)}</datalist>
         <div className="mt-2 space-y-2">
           {draft.weapons.map((w, i) => (
              <div key={i} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
-              <WeaponCatalogPicker onPick={(name, file) => setW(i, { name, iconFile: file, icon_path: null, icon_url: null })} />
-              <WeaponIconInput name={w.name} file={w.iconFile} url={w.icon_url} onChange={(file) => setW(i, { iconFile: file, icon_path: file ? w.icon_path : null, icon_url: file ? w.icon_url : null })} />
-              <Input list="weapons" className="min-w-0 flex-1 basis-40" aria-label={`Nome da arma ${i + 1}`} placeholder="Nome da arma" value={w.name} onChange={(e) => setW(i, { name: e.target.value })} />
+              <WeaponCatalogPicker onPick={(weapon) => pickCatalog(i, weapon)} />
+              <WeaponIconInput name={w.name} file={w.iconFile} url={previewUrl(w)} onChange={(file) => setW(i, { iconFile: file, icon_path: file ? w.icon_path : null, icon_url: file ? w.icon_url : null, icon_code: null })} />
+              <Input list="weapons" className="min-w-0 flex-1 basis-40" aria-label={`Nome da arma ${i + 1}`} placeholder="Nome da arma" value={w.name} onChange={(e) => setName(i, e.target.value)} />
               <Input type="number" min={1} className="w-20 shrink-0" aria-label={`Vagas de ${w.name || "arma"}`} value={w.slots} onChange={(e) => setW(i, { slots: Number(e.target.value) })} />
               <Select value={w.build_id ?? "none"} onValueChange={(v) => setW(i, { build_id: v === "none" ? null : v })}>
                 <SelectTrigger className="w-44 shrink-0" aria-label={`Build da arma ${w.name || i + 1}`}><SelectValue placeholder="Build" /></SelectTrigger>
