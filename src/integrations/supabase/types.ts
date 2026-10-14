@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      builds: {
+        Row: {
+          author_name: string | null
+          weapon: string | null
+          helmet: string | null
+          armor: string | null
+          boots: string | null
+          cape: string | null
+          offhand: string | null
+          potion: string | null
+          food: string | null
+          mount: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          weapon?: string | null
+          helmet?: string | null
+          armor?: string | null
+          boots?: string | null
+          cape?: string | null
+          offhand?: string | null
+          potion?: string | null
+          food?: string | null
+          mount?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          weapon?: string | null
+          helmet?: string | null
+          armor?: string | null
+          boots?: string | null
+          cape?: string | null
+          offhand?: string | null
+          potion?: string | null
+          food?: string | null
+          mount?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       content_options: {
         Row: {
           created_at: string
@@ -69,6 +126,7 @@ export type Database = {
       }
       event_weapons: {
         Row: {
+          build_id: string | null
           event_id: string
           icon_path: string | null
           id: string
@@ -77,6 +135,7 @@ export type Database = {
           slots: number
         }
         Insert: {
+          build_id?: string | null
           event_id: string
           icon_path?: string | null
           id?: string
@@ -85,6 +144,7 @@ export type Database = {
           slots?: number
         }
         Update: {
+          build_id?: string | null
           event_id?: string
           icon_path?: string | null
           id?: string
@@ -98,6 +158,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_weapons_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
             referencedColumns: ["id"]
           },
         ]
@@ -138,6 +205,45 @@ export type Database = {
           mode?: string | null
           starts_at?: string
           title?: string
+        }
+        Relationships: []
+      }
+      gear_catalog: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          item_code: string
+          max_enchant: number
+          max_tier: number
+          min_tier: number
+          name: string
+          position: number
+          slot: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          item_code: string
+          max_enchant?: number
+          max_tier?: number
+          min_tier?: number
+          name: string
+          position?: number
+          slot: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          item_code?: string
+          max_enchant?: number
+          max_tier?: number
+          min_tier?: number
+          name?: string
+          position?: number
+          slot?: string
         }
         Relationships: []
       }

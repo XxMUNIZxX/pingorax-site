@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getShareImage } from "@/lib/share-image.functions";
 import { DEFAULT_SHARE_IMAGE } from "@/lib/share-image";
+import { BuildGear } from "@/components/build-view";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
@@ -84,6 +85,7 @@ function EventPage() {
   const [nick, setNick] = useState("");
   const [weaponId, setWeaponId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [openBuild, setOpenBuild] = useState<string | null>(null);
 
   useEffect(() => {
     const ch = supabase
@@ -174,6 +176,25 @@ function EventPage() {
             );
           })}
         </div>
+        {weapons.some((w) => w.build) && (
+          <section className="mt-8 border-t border-border pt-6" aria-label="Builds do conteúdo">
+            <h2 className="text-xl font-bold">Builds</h2>
+            <p className="text-sm text-muted-foreground">Escolha uma arma para ver a build indicada.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {weapons.filter((w) => w.build).map((w) => (
+                <Button key={w.id} type="button" size="sm" variant={openBuild === w.id ? "secondary" : "outline"} aria-pressed={openBuild === w.id} onClick={() => setOpenBuild(openBuild === w.id ? null : w.id)}>{w.name}</Button>
+              ))}
+            </div>
+            {weapons.filter((w) => w.id === openBuild && w.build).map((w) => (
+              <div key={w.id} className="panel mt-4 max-w-md p-4">
+                <h3 className="font-bold">{w.build!.name}</h3>
+                {w.build!.author_name && <p className="text-xs text-muted-foreground">por {w.build!.author_name}</p>}
+                {w.build!.description && <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{w.build!.description}</p>}
+                <div className="mt-3"><BuildGear build={w.build!} size={64} /></div>
+              </div>
+            ))}
+          </section>
+        )}
         <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="player-nick">Seu nick no Albion</Label><Input id="player-nick" placeholder="Seu nick no jogo" value={nick} onChange={(e) => setNick(e.target.value)} maxLength={32} /></div>
           <Button variant="gold" type="submit" disabled={sending || full} className="sm:min-w-40">{sending ? "Confirmando..." : full ? "Lotado" : "Pingar"}</Button>

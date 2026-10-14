@@ -5,6 +5,7 @@ import { PanelAccess } from "@/components/panel-access";
 import { TeamPanel } from "@/components/team-panel";
 import { ShareImagePanel } from "@/components/share-image-panel";
 import { WeaponCatalogPanel } from "@/components/weapon-catalog-panel";
+import { GearCatalogPanel } from "@/components/gear-catalog-panel";
 import { ContentOptionsPanel } from "@/components/content-options-panel";
 
 export const Route = createFileRoute("/admin")({
@@ -33,5 +34,6 @@ function AdminPage() {
     <ShareImagePanel />
     <ContentOptionsPanel />
     <WeaponCatalogPanel />
+    <GearCatalogPanel />
   </main>}</PanelAccess>;
 }

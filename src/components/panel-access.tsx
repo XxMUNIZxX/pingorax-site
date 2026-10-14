@@ -56,7 +56,9 @@ export function PanelAccess({ adminOnly = false, children }: { adminOnly?: boole
   return children({ userId: access.session.user.id, isAdmin: access.isAdmin, canCreate: access.canCreate });
 }
 
-function AuthForm() {
+export function useSession() { return useContext(SessionContext); }
+
+export function AuthForm({ redirectPath = "/criar", title }: { redirectPath?: string; title?: string }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,7 +71,7 @@ function AuthForm() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) toast.error("Email ou senha inválidos");
     } else {
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/criar` } });
+      const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}${redirectPath}` } });
       if (error) toast.error(error.message);
       else if (!data.session) toast.success("Confira seu email para confirmar a conta.");
     }
@@ -79,7 +81,7 @@ function AuthForm() {
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
       <form onSubmit={submit} className="panel space-y-4 p-6">
-        <h1 className="text-2xl font-bold text-gold">{mode === "in" ? "Entrar" : "Criar conta"}</h1>
+        <h1 className="text-2xl font-bold text-gold">{title ?? (mode === "in" ? "Entrar" : "Criar conta")}</h1>
         <div className="space-y-1"><Label>Email</Label><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="space-y-1"><Label>Senha</Label><Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
         <Button variant="gold" className="w-full" disabled={loading}>{mode === "in" ? "Entrar" : "Cadastrar"}</Button>
