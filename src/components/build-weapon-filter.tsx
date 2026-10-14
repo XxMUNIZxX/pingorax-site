@@ -42,18 +42,18 @@ export function BuildWeaponFilter({ groups, counts, category, weapon, onCategory
       <h2 className="text-sm font-bold uppercase tracking-widest text-primary">Procurar por arma</h2>
       <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-9">
         <button type="button" aria-pressed={category === null} onClick={() => onCategory(null)}
-          className={`flex flex-col items-center justify-center rounded-md border p-2 text-xs font-medium hover:border-primary ${category === null ? "border-primary bg-secondary ring-2 ring-primary" : "border-border bg-card"}`}>
-          <span className="text-lg font-bold text-gold">{counts.total}</span>Todas
+          className={`flex flex-col items-center justify-center rounded-xl border p-2 text-xs font-semibold transition hover:-translate-y-0.5 hover:border-primary ${category === null ? "border-primary bg-secondary glow ring-1 ring-primary" : "border-border bg-card"}`}>
+          <span className="text-2xl font-bold text-gold">{counts.total}</span>Todas
         </button>
         {groups.map((group) => {
           const on = group.category === category;
           const n = counts.byCategory.get(group.category) ?? 0;
           return (
             <button key={group.category} type="button" aria-pressed={on} onClick={() => onCategory(on ? null : group.category)} title={`${group.category} (${n})`}
-              className={`relative flex flex-col items-center rounded-md border p-1.5 text-xs hover:border-primary ${on ? "border-primary bg-secondary ring-2 ring-primary" : "border-border bg-card"} ${n === 0 ? "opacity-60" : ""}`}>
-              <img src={itemIconUrl(group.icon, 96)} alt="" loading="lazy" className="h-12 w-12 object-contain" />
-              <span className="mt-0.5 w-full truncate text-center">{group.category}</span>
-              {n > 0 && <span className="absolute right-1 top-1 rounded bg-background/80 px-1 text-[10px] font-bold text-gold">{n}</span>}
+              className={`relative flex flex-col items-center rounded-xl border bg-gradient-to-b p-1.5 text-xs transition hover:-translate-y-0.5 hover:border-primary ${on ? "border-primary from-secondary to-card glow ring-1 ring-primary" : "border-border from-card to-background/40"} ${n === 0 ? "opacity-55" : ""}`}>
+              <img src={itemIconUrl(group.icon, 96)} alt="" loading="lazy" className="h-12 w-12 object-contain drop-shadow-[0_2px_3px_rgba(0,0,0,.6)]" />
+              <span className={`mt-0.5 w-full truncate text-center font-medium ${on ? "text-foreground" : "text-muted-foreground"}`}>{group.category}</span>
+              {n > 0 && <span className="absolute right-1 top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-bold leading-4 text-primary-foreground">{n}</span>}
             </button>
           );
         })}
@@ -61,13 +61,13 @@ export function BuildWeaponFilter({ groups, counts, category, weapon, onCategory
       {active && (
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={`Armas de ${active.category}`}>
           <button type="button" aria-pressed={weapon === null} onClick={() => onWeapon(null)}
-            className={`rounded-full border px-3 py-1 text-xs hover:border-primary ${weapon === null ? "border-primary bg-secondary" : "border-border"}`}>Todas de {active.category}</button>
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition hover:border-primary ${weapon === null ? "border-primary bg-secondary" : "border-border bg-card"}`}>Todas de {active.category}</button>
           {active.weapons.map((w) => {
             const base = baseOf(w.item_code);
             const n = counts.byWeapon.get(base) ?? 0;
             return (
               <button key={w.id} type="button" aria-pressed={weapon === base} onClick={() => onWeapon(weapon === base ? null : base)}
-                className={`flex items-center gap-1.5 rounded-full border py-0.5 pl-1 pr-3 text-xs hover:border-primary ${weapon === base ? "border-primary bg-secondary" : "border-border"} ${n === 0 ? "opacity-60" : ""}`}>
+                className={`flex items-center gap-1.5 rounded-full border py-0.5 pl-1 pr-3 text-xs transition hover:border-primary ${weapon === base ? "border-primary bg-secondary" : "border-border bg-card"} ${n === 0 ? "opacity-55" : ""}`}>
                 <img src={itemIconUrl(w.item_code, 48)} alt="" loading="lazy" className="h-7 w-7 object-contain" />
                 {w.name}{n > 0 && <span className="font-bold text-gold">{n}</span>}
               </button>

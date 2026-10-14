@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ItemSlot } from "@/components/item-slot";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BUILD_SLOTS, composeGearCode, fetchGearCatalog, itemIconUrl, normalize, parseGearCode, tierLabel, type SlotKey } from "@/lib/builds";
+import { BUILD_SLOTS, composeGearCode, fetchGearCatalog, normalize, parseGearCode, tierLabel, type SlotKey } from "@/lib/builds";
 import { fetchWeaponCatalog } from "@/lib/weapon-catalog";
 
 type PickItem = { key: string; name: string; category: string | null; base: string; iconTier: number; minTier: number; maxTier: number; maxEnchant: number };
@@ -76,7 +77,7 @@ export function BuildSlotPicker({ slot, current, onClose, onChange }: { slot: Sl
           {shown.map((item) => (
             <button key={item.key} type="button" onClick={() => pick(item)} aria-pressed={chosen?.key === item.key}
               className={`flex items-center gap-2 rounded-md border bg-card p-2 text-left hover:border-primary ${chosen?.key === item.key ? "border-primary ring-2 ring-primary" : "border-border"}`}>
-              <img src={itemIconUrl(composeGearCode(item.base, item.iconTier, 0), 64)} alt="" loading="lazy" className="h-12 w-12 shrink-0 object-contain" />
+              <ItemSlot code={composeGearCode(item.base, item.iconTier, 0)} size={52} showTier={false} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{item.name}</span>
                 {item.category && <span className="block truncate text-xs text-muted-foreground">{item.category}</span>}
