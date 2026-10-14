@@ -26,6 +26,7 @@ export type Database = {
           potion: string | null
           food: string | null
           mount: string | null
+          content_type: string | null
           created_at: string
           description: string | null
           id: string
@@ -44,6 +45,7 @@ export type Database = {
           potion?: string | null
           food?: string | null
           mount?: string | null
+          content_type?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -62,6 +64,7 @@ export type Database = {
           potion?: string | null
           food?: string | null
           mount?: string | null
+          content_type?: string | null
           created_at?: string
           description?: string | null
           id?: string
