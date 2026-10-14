@@ -119,15 +119,19 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PanelSessionProvider>
-      <header className="border-b border-border bg-background">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <Link to="/" className="font-display text-2xl font-extrabold text-gold" aria-label="PingoraX — página inicial">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <Link to="/" className="flex items-center gap-2 font-display text-2xl font-extrabold text-gold" aria-label="PingoraX — página inicial">
+            <img src="/logo-96.png" alt="" width={36} height={36} className="h-9 w-9 object-contain" />
             PingoraX
           </Link>
           <PanelNavigation />
         </div>
       </header>
+      {/* Bloco de conteúdo: dá contraste entre a página e o fundo */}
+      <div className="mx-2 my-4 max-w-[76rem] rounded-2xl border border-border/70 bg-background/70 shadow-2xl shadow-black/30 backdrop-blur-sm sm:mx-4 xl:mx-auto">
       <Outlet />
+      </div>
       <Toaster richColors theme="dark" />
       </PanelSessionProvider>
     </QueryClientProvider>
