@@ -1,28 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AuthForm, usePanelAccess } from "@/components/panel-access";
-import { BuildGear } from "@/components/build-view";
-import { BuildSlotPicker } from "@/components/build-slot-picker";
-import {
-  buildPayload, draftFromBuild, emptyBuildDraft, fetchBuilds, normalize,
-  type Build, type BuildDraft, type SlotKey,
-} from "@/lib/builds";
+import { BuildCard, BuildDialog } from "@/components/build-card";
+import { BuildEditor } from "@/components/build-editor";
+import { BuildWeaponFilter, NO_CATEGORY, groupWeapons } from "@/components/build-weapon-filter";
+import { baseOf, draftFromBuild, emptyBuildDraft, fetchBuilds, fetchBuildUsage, normalize, type Build, type BuildDraft } from "@/lib/builds";
+import { useContentOptions } from "@/lib/content-options";
+import { fetchWeaponCatalog } from "@/lib/weapon-catalog";
 
 export const Route = createFileRoute("/builds")({
   ssr: false,
   head: () => ({ meta: [
     { title: "Builds — PingoraX" },
-    { name: "description", content: "Monte e compartilhe builds de Albion Online: arma, elmo, armadura, bota, capa, poção, comida, mão secundária e montaria." },
+    { name: "description", content: "Encontre builds de Albion Online por arma e tipo de conteúdo, ou monte e compartilhe a sua." },
     { property: "og:title", content: "Builds — PingoraX" },
-    { property: "og:description", content: "Monte e compartilhe builds de Albion Online." },
+    { property: "og:description", content: "Encontre builds de Albion Online por arma e tipo de conteúdo." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
   ] }),
@@ -30,34 +30,88 @@ export const Route = createFileRoute("/builds")({
 });
 
 type Editing = { id?: string; draft: BuildDraft } | null;
+type Sort = "popular" | "recent" | "name";
 
 function BuildsPage() {
   const qc = useQueryClient();
   const access = usePanelAccess();
   const userId = access.session?.user.id;
+  const options = useContentOptions();
   const { data: builds, isPending, isError } = useQuery({ queryKey: ["builds"], queryFn: fetchBuilds });
+  const usageQuery = useQuery({ queryKey: ["build-usage"], queryFn: fetchBuildUsage, staleTime: 30_000 });
+  const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
+  const usage = usageQuery.data;
+
   const [editing, setEditing] = useState<Editing>(null);
+  const [opened, setOpened] = useState<string | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [q, setQ] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
+  const [weapon, setWeapon] = useState<string | null>(null);
+  const [type, setType] = useState("all");
+  const [author, setAuthor] = useState("all");
+  const [sort, setSort] = useState<Sort>("popular");
   const [onlyMine, setOnlyMine] = useState(false);
+  const [showGear, setShowGear] = useState(true);
 
+  const groups = useMemo(() => groupWeapons(catalog.data ?? []), [catalog.data]);
+  const categoryOfBase = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const w of catalog.data ?? []) map.set(baseOf(w.item_code), w.category || NO_CATEGORY);
+    return map;
+  }, [catalog.data]);
+  const categoryOf = (b: Build) => (b.weapon ? categoryOfBase.get(baseOf(b.weapon)) ?? NO_CATEGORY : NO_CATEGORY);
+
+  const all = builds ?? [];
+  const typeList = useMemo(() => [...new Set([...options.types, ...all.flatMap((b) => b.content_type ? [b.content_type] : [])])], [options.types, all]);
+  const authors = useMemo(() => [...new Set(all.flatMap((b) => b.author_name ? [b.author_name] : []))].sort((a, b) => a.localeCompare(b, "pt-BR")), [all]);
+
+  // Contagens do filtro de armas respeitam os outros filtros (tipo, autor, busca), mas não o da própria arma.
   const nq = normalize(q.trim());
-  const shown = (builds ?? []).filter((b) => (!onlyMine || b.owner_id === userId) && (!nq || normalize(`${b.name} ${b.author_name ?? ""} ${b.description ?? ""}`).includes(nq)));
-  const canChange = (b: Build) => !!userId && (b.owner_id === userId || access.isAdmin);
+  const matchesOthers = (b: Build) =>
+    (!onlyMine || b.owner_id === userId) &&
+    (type === "all" || b.content_type === type) &&
+    (author === "all" || b.author_name === author) &&
+    (!nq || normalize(`${b.name} ${b.author_name ?? ""} ${b.description ?? ""}`).includes(nq));
+  const base = all.filter(matchesOthers);
+  const counts = (() => {
+    const byCategory = new Map<string, number>(); const byWeapon = new Map<string, number>();
+    for (const b of base) {
+      const c = categoryOf(b); byCategory.set(c, (byCategory.get(c) ?? 0) + 1);
+      if (b.weapon) byWeapon.set(baseOf(b.weapon), (byWeapon.get(baseOf(b.weapon)) ?? 0) + 1);
+    }
+    return { byCategory, byWeapon, total: base.length };
+  })();
 
+  const uses = (b: Build) => usage?.get(b.id) ?? 0;
+  const shown = base
+    .filter((b) => (!category || categoryOf(b) === category) && (!weapon || (b.weapon && baseOf(b.weapon) === weapon)))
+    .sort((a, b) =>
+      sort === "name" ? a.name.localeCompare(b.name, "pt-BR")
+      : sort === "recent" ? b.updated_at.localeCompare(a.updated_at)
+      : uses(b) - uses(a) || b.updated_at.localeCompare(a.updated_at));
+
+  const filtered = category !== null || weapon !== null || type !== "all" || author !== "all" || !!q || onlyMine;
+  function reset() { setCategory(null); setWeapon(null); setType("all"); setAuthor("all"); setQ(""); setOnlyMine(false); setSort("popular"); }
+
+  const canChange = (b: Build) => !!userId && (b.owner_id === userId || access.isAdmin);
+  const openedBuild = opened ? all.find((b) => b.id === opened) ?? null : null;
+
+  function refresh() {
+    for (const key of ["builds", "build-usage", "event", "events", "managed-events"]) void qc.invalidateQueries({ queryKey: [key] });
+  }
   function startNew() {
     if (!access.session) { setNeedLogin(true); return; }
-    setEditing({ draft: emptyBuildDraft() });
+    setEditing({ draft: { ...emptyBuildDraft(), content_type: type !== "all" ? type : null } });
   }
+  function startEdit(b: Build) { setOpened(null); setEditing({ id: b.id, draft: draftFromBuild(b) }); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function remove(b: Build) {
     if (!confirm(`Apagar a build "${b.name}"? Conteúdos que usam ela ficam sem build.`)) return;
     const { error } = await supabase.from("builds").delete().eq("id", b.id);
     if (error) { toast.error("Não foi possível apagar a build."); return; }
     toast.success("Build apagada.");
-    void qc.invalidateQueries({ queryKey: ["builds"] });
-    void qc.invalidateQueries({ queryKey: ["events"] });
-    void qc.invalidateQueries({ queryKey: ["event"] });
-    void qc.invalidateQueries({ queryKey: ["managed-events"] });
+    setOpened(null);
+    refresh();
   }
 
   if (needLogin && !access.session && !access.loading) {
@@ -66,11 +120,11 @@ function BuildsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gold">Builds</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Qualquer pessoa com conta pode criar builds. Criadores ligam elas às armas dos conteúdos.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Escolha a arma e o tipo de conteúdo para achar a build. Qualquer pessoa com conta pode criar a sua.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="gold" onClick={startNew}><Plus /> Nova build</Button>
@@ -78,83 +132,49 @@ function BuildsPage() {
         </div>
       </div>
 
-      {editing && <BuildEditor key={editing.id ?? "new"} editing={editing} onCancel={() => setEditing(null)} onSaved={() => {
-        setEditing(null);
-        void qc.invalidateQueries({ queryKey: ["builds"] });
-        void qc.invalidateQueries({ queryKey: ["event"] });
-        void qc.invalidateQueries({ queryKey: ["events"] });
-        void qc.invalidateQueries({ queryKey: ["managed-events"] });
-      }} />}
+      {editing && <BuildEditor key={editing.id ?? "new"} id={editing.id} initial={editing.draft} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
 
-      <div className="mt-8 flex flex-wrap items-center gap-2">
-        <Input className="min-w-0 flex-1 basis-56" aria-label="Buscar builds" placeholder="Buscar por nome, autor ou descrição…" value={q} onChange={(e) => setQ(e.target.value)} />
-        {userId && <Button variant={onlyMine ? "secondary" : "outline"} aria-pressed={onlyMine} onClick={() => setOnlyMine(!onlyMine)}>Minhas builds</Button>}
+      <div className="mt-8">
+        <BuildWeaponFilter groups={groups} counts={counts} category={category} weapon={weapon}
+          onCategory={(c) => { setCategory(c); setWeapon(null); }} onWeapon={setWeapon} />
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+        <Input aria-label="Buscar builds" placeholder="Buscar por nome, autor ou descrição…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Select value={type} onValueChange={setType}>
+          <SelectTrigger aria-label="Tipo de conteúdo"><SelectValue placeholder="Tipo de conteúdo" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">Todos os conteúdos</SelectItem>{typeList.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={author} onValueChange={setAuthor}>
+          <SelectTrigger aria-label="Autor"><SelectValue placeholder="Autor" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">Todos os autores</SelectItem>{authors.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={sort} onValueChange={(v) => setSort(v as Sort)}>
+          <SelectTrigger aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="popular">Mais usadas</SelectItem>
+            <SelectItem value="recent">Atualizadas recentemente</SelectItem>
+            <SelectItem value="name">Nome (A–Z)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+        <label className="flex items-center gap-2"><Switch checked={showGear} onCheckedChange={setShowGear} aria-label="Mostrar equipamentos nos cartões" />Equipamentos nos cartões</label>
+        {userId && <Button size="sm" variant={onlyMine ? "secondary" : "outline"} aria-pressed={onlyMine} onClick={() => setOnlyMine(!onlyMine)}>Minhas builds</Button>}
+        <Button size="sm" variant="ghost" disabled={!filtered} onClick={reset}><RotateCcw /> Limpar filtros</Button>
+        <span className="ml-auto text-muted-foreground" aria-live="polite">{shown.length} {shown.length === 1 ? "build" : "builds"}</span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {isPending && <p className="text-muted-foreground">Carregando builds...</p>}
-        {isError && <p role="alert" className="text-destructive">Não foi possível carregar as builds. Confira se a migração 0003 foi executada no Supabase.</p>}
-        {!isPending && !isError && shown.length === 0 && <p className="text-muted-foreground">Nenhuma build encontrada.</p>}
-        {shown.map((b) => (
-          <article key={b.id} className="panel p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h2 className="break-words text-lg font-bold">{b.name}</h2>
-                <p className="text-xs text-muted-foreground">{b.author_name ? `por ${b.author_name}` : "autor não informado"}{b.owner_id === userId && " · sua build"}</p>
-              </div>
-              {canChange(b) && <div className="flex gap-1">
-                <Button size="sm" variant="secondary" onClick={() => { setEditing({ id: b.id, draft: draftFromBuild(b) }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Editar</Button>
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(b)}>Apagar</Button>
-              </div>}
-            </div>
-            {b.description && <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{b.description}</p>}
-            <div className="mx-auto mt-3 max-w-sm"><BuildGear build={b} size={56} /></div>
-          </article>
-        ))}
+        {isError && <p role="alert" className="text-destructive sm:col-span-2 lg:col-span-3">Não foi possível carregar as builds. Confira se as migrações 0003 e 0005 foram executadas no Supabase.</p>}
+        {!isPending && !isError && shown.length === 0 && <p className="text-muted-foreground sm:col-span-2 lg:col-span-3">Nenhuma build encontrada{filtered ? " com esses filtros" : ""}.{" "}
+          {filtered && <button type="button" className="text-primary underline" onClick={reset}>Limpar filtros</button>}</p>}
+        {shown.map((b) => <BuildCard key={b.id} build={b} uses={uses(b)} showGear={showGear} mine={b.owner_id === userId} onOpen={() => setOpened(b.id)} />)}
       </div>
+
+      <BuildDialog build={openedBuild} uses={openedBuild ? uses(openedBuild) : 0} canChange={openedBuild ? canChange(openedBuild) : false}
+        onClose={() => setOpened(null)} onEdit={startEdit} onDelete={remove} />
     </main>
-  );
-}
-
-function BuildEditor({ editing, onCancel, onSaved }: { editing: NonNullable<Editing>; onCancel: () => void; onSaved: () => void }) {
-  const [draft, setDraft] = useState(editing.draft);
-  const [slot, setSlot] = useState<SlotKey | null>(null);
-  const [saving, setSaving] = useState(false);
-  const set = (p: Partial<BuildDraft>) => setDraft((d) => ({ ...d, ...p }));
-
-  async function save() {
-    if (!draft.name.trim()) { toast.error("Dê um nome para a build."); return; }
-    if (!draft.weapon) { toast.error("Escolha ao menos a arma da build."); return; }
-    setSaving(true);
-    const payload = buildPayload(draft);
-    const { error } = editing.id
-      ? await supabase.from("builds").update(payload).eq("id", editing.id)
-      : await supabase.from("builds").insert(payload);
-    setSaving(false);
-    if (error) { toast.error(error.code === "23514" ? "Você chegou ao limite de builds da conta." : "Não foi possível salvar a build."); return; }
-    toast.success("Build salva.");
-    onSaved();
-  }
-
-  return (
-    <fieldset disabled={saving} className="mt-6 min-w-0 border-y border-border py-6">
-      <h2 className="text-xl font-bold">{editing.id ? "Editar build" : "Nova build"}</h2>
-      <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <div className="space-y-4">
-          <div className="space-y-1"><Label htmlFor="build-name">Nome da build</Label><Input id="build-name" maxLength={60} placeholder="Ex.: Sagrado ZvZ, Frost de Avalon..." value={draft.name} onChange={(e) => set({ name: e.target.value })} /></div>
-          <div className="space-y-1"><Label htmlFor="build-author">Autor (opcional)</Label><Input id="build-author" maxLength={40} placeholder="Seu nick" value={draft.author_name} onChange={(e) => set({ author_name: e.target.value })} /></div>
-          <div className="space-y-1"><Label htmlFor="build-desc">Descrição (opcional)</Label><Textarea id="build-desc" maxLength={500} placeholder="Rotação, dicas, quando usar..." value={draft.description} onChange={(e) => set({ description: e.target.value })} /></div>
-        </div>
-        <div>
-          <BuildGear build={draft} size={72} onPick={setSlot} />
-          <p className="mt-2 text-center text-xs text-muted-foreground">Clique em um espaço para escolher o item.</p>
-        </div>
-      </div>
-      <div className="mt-6 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onCancel}>Cancelar</Button>
-        <Button variant="gold" onClick={save}>{saving ? "Salvando..." : "Salvar build"}</Button>
-      </div>
-      <BuildSlotPicker slot={slot} current={slot ? draft[slot] : null} onClose={() => setSlot(null)} onChange={(code) => { if (slot) set({ [slot]: code } as Partial<BuildDraft>); }} />
-    </fieldset>
   );
 }

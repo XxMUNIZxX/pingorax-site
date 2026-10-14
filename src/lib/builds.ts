@@ -15,20 +15,20 @@ export const BUILD_SLOTS = [
 export type SlotKey = (typeof BUILD_SLOTS)[number]["key"];
 export type GearSlot = Exclude<SlotKey, "weapon">;
 export type Build = {
-  id: string; owner_id: string; name: string; author_name: string | null; description: string | null;
+  id: string; owner_id: string; name: string; author_name: string | null; description: string | null; content_type: string | null;
   created_at: string; updated_at: string;
 } & Record<SlotKey, string | null>;
-export type BuildDraft = { name: string; author_name: string; description: string } & Record<SlotKey, string | null>;
+export type BuildDraft = { name: string; author_name: string; description: string; content_type: string | null } & Record<SlotKey, string | null>;
 export type GearItem = {
   id: string; slot: GearSlot; name: string; category: string | null; item_code: string;
   min_tier: number; max_tier: number; max_enchant: number; position: number;
 };
 
 export const SLOT_KEYS = BUILD_SLOTS.map((slot) => slot.key);
-const BUILD_COLUMNS = ["id", "owner_id", "name", "author_name", "description", "created_at", "updated_at", ...SLOT_KEYS].join(",");
+const BUILD_COLUMNS = ["id", "owner_id", "name", "author_name", "description", "content_type", "created_at", "updated_at", ...SLOT_KEYS].join(",");
 
 export const emptyBuildDraft = (): BuildDraft => ({
-  name: "", author_name: "", description: "",
+  name: "", author_name: "", description: "", content_type: null,
   weapon: null, helmet: null, armor: null, boots: null, cape: null, offhand: null, potion: null, food: null, mount: null,
 });
 
@@ -73,7 +73,7 @@ export async function fetchBuildsByIds(ids: string[]): Promise<Build[]> {
 
 export function draftFromBuild(build: Build): BuildDraft {
   const draft = emptyBuildDraft();
-  draft.name = build.name; draft.author_name = build.author_name ?? ""; draft.description = build.description ?? "";
+  draft.name = build.name; draft.author_name = build.author_name ?? ""; draft.description = build.description ?? ""; draft.content_type = build.content_type;
   for (const key of SLOT_KEYS) draft[key] = build[key];
   return draft;
 }
@@ -83,6 +83,7 @@ export function buildPayload(draft: BuildDraft) {
     name: draft.name.trim(),
     author_name: draft.author_name.trim() || null,
     description: draft.description.trim() || null,
+    content_type: draft.content_type || null,
     weapon: draft.weapon, helmet: draft.helmet, armor: draft.armor, boots: draft.boots, cape: draft.cape,
     offhand: draft.offhand, potion: draft.potion, food: draft.food, mount: draft.mount,
   };
@@ -90,4 +91,13 @@ export function buildPayload(draft: BuildDraft) {
 
 export function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+/** Quantos conteúdos usam cada build (vira a "popularidade"). */
+export async function fetchBuildUsage(): Promise<Map<string, number>> {
+  const { data, error } = await supabase.from("event_weapons").select("build_id").not("build_id", "is", null);
+  if (error) throw error;
+  const usage = new Map<string, number>();
+  for (const row of data ?? []) if (row.build_id) usage.set(row.build_id, (usage.get(row.build_id) ?? 0) + 1);
+  return usage;
 }

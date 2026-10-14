@@ -1041,3 +1041,10 @@ update public.event_weapons ew
  where ew.icon_path is null
    and ew.icon_code is null
    and lower(btrim(ew.name)) = lower(btrim(wc.name));
+
+-- ---------------------------------------------------------------------------
+-- Tipo de conteúdo das builds (migração 0005)
+-- ---------------------------------------------------------------------------
+alter table public.builds
+  add column content_type text
+  check (content_type is null or char_length(content_type) between 1 and 40);
