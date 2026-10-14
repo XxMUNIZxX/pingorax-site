@@ -45,6 +45,7 @@ create trigger on_auth_user_created_admin after insert on auth.users
 create or replace function public.can_create_content() returns boolean
 language sql stable security definer set search_path = public
 as $$ select public.has_role(auth.uid(), 'admin') or public.has_role(auth.uid(), 'creator'); $$;
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
 
 -- ---------------------------------------------------------------------------
 -- Conteúdos (eventos)
@@ -642,3 +643,4 @@ create policy "Admins delete own unused sharing images" on storage.objects
   using (
     bucket_id = 'share-images' and owner_id = auth.uid()::text and public.has_role(auth.uid(), 'admin')
     and not exists (select 1 from public.site_share_settings s where s.image_path = name));
+
