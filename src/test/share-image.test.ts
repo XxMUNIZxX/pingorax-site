@@ -4,7 +4,7 @@ import { DEFAULT_SHARE_IMAGE, prepareShareImage, shareImageUrl } from "@/lib/sha
 describe("sharing image", () => {
   it("uses the current site for the default image", () => {
     expect(shareImageUrl()).toBe(DEFAULT_SHARE_IMAGE);
-    expect(DEFAULT_SHARE_IMAGE).toBe("https://pingorax.online/og-banner.jpg");
+    expect(DEFAULT_SHARE_IMAGE).toBe("https://pingorax.online/og-banner.jpg?v=2");
   });
   it("uses a public versioned endpoint, without exposing owner paths", () => {
     expect(shareImageUrl("owner/123.jpg")).toBe("https://pingorax.online/api/public/share-image?v=123.jpg");
