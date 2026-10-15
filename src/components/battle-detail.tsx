@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ItemSlot } from "@/components/item-slot";
 import { BuildGear, useItemNames } from "@/components/build-view";
+import { SectionBoundary } from "@/components/section-boundary";
 import { BattleTimeline } from "@/components/battle-timeline";
 import { Composition, IpByRole } from "@/components/battle-extras";
 import { fetchBattle, fetchBattleKills } from "@/lib/albion.functions";
@@ -62,7 +63,7 @@ function Battle({ battle, loadingKills, killsFailed, truncated }: { battle: Batt
       </div>
 
       {(loadingKills || killsFailed) && <p className="rounded-lg border border-border bg-card/60 p-3 text-sm text-muted-foreground">{loadingKills ? "Carregando kills, equipamentos e linha do tempo..." : "Não consegui carregar as kills agora. O placar acima está completo; recarregue a página para tentar de novo."}</p>}
-      {battle.kills.length > 0 && <BattleTimeline battle={battle} />}
+      {battle.kills.length > 0 && <SectionBoundary label="Linha do tempo"><BattleTimeline battle={battle} /></SectionBoundary>}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Highlight label="Mais kills" player={highlights.topKills} value={highlights.topKills ? String(highlights.topKills.kills) : "—"} unit="kills" sub={highlights.topKills ? `${highlights.topKills.kills} / ${highlights.topKills.deaths}` : ""} color="text-emerald-400" />
@@ -73,8 +74,8 @@ function Battle({ battle, loadingKills, killsFailed, truncated }: { battle: Batt
 
       <PlayersTable players={battle.players} nameOf={nameOf} />
       {battle.kills.length > 0 && <KillsTable kills={battle.kills} nameOf={nameOf} total={battle.totalKills} truncated={truncated} />}
-      {battle.kills.length > 0 && <><IpByRole players={battle.players} />
-      <Composition players={battle.players} /></>}
+      {battle.kills.length > 0 && <><SectionBoundary label="IP por função"><IpByRole players={battle.players} /></SectionBoundary>
+      <SectionBoundary label="Composição"><Composition players={battle.players} /></SectionBoundary></>}
     </div>
   );
 }
