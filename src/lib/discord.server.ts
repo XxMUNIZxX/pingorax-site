@@ -46,10 +46,10 @@ const itemIconUrl = (code: string, size: number) => `https://render.albiononline
 const emojiTag = (e: AppEmoji) => `<:${e.name}:${e.id}>`;
 let emojiCache: { at: number; byName: Map<string, AppEmoji> } | null = null;
 const EMOJI_TTL = 10 * 60 * 1000;
-const MAX_NEW_EMOJIS_PER_CALL = 10;
+const MAX_NEW_EMOJIS_PER_CALL = 15;
 
-async function listAppEmojis(appId: string, token: string) {
-  if (emojiCache && Date.now() - emojiCache.at < EMOJI_TTL) return emojiCache.byName;
+async function listAppEmojis(appId: string, token: string, fresh = false) {
+  if (!fresh && emojiCache && Date.now() - emojiCache.at < EMOJI_TTL) return emojiCache.byName;
   const data = await discord<{ items?: AppEmoji[] }>(`/applications/${appId}/emojis`, token);
   const byName = new Map((data.items ?? []).map((e) => [e.name, e] as const));
   emojiCache = { at: Date.now(), byName };
@@ -267,4 +267,26 @@ export async function handleInteraction(body: Interaction) {
     return { type: 7, data: buildMessage(event, await weaponEmojis(event, discordConfig(), false)) };
   }
   return ephemeral("Interação não suportada.");
+}
+
+/** Cria (em lotes) o emoji de todas as armas do catálogo. Chame de novo até `remaining` chegar a 0. */
+export async function syncCatalogEmojis(cfg: DiscordConfig, batch = 15) {
+  if (!cfg.appId || !cfg.botToken) throw new Error("Faltam DISCORD_APP_ID e DISCORD_BOT_TOKEN no Worker.");
+  const { data, error } = await anonClient().from("weapon_catalog").select("item_code");
+  if (error) throw error;
+  const codes = [...new Set((data ?? []).map((row) => row.item_code).filter(Boolean))];
+  const byName = await listAppEmojis(cfg.appId, cfg.botToken, true);
+  const missing = codes.filter((code) => !byName.has(emojiNameOf(code)));
+  let created = 0; let failed = 0; let rateLimited = false;
+  for (const code of missing.slice(0, batch)) {
+    try {
+      const emoji = await uploadEmoji(cfg.appId, cfg.botToken, code, emojiNameOf(code));
+      if (emoji) { byName.set(emoji.name, emoji); created++; } else failed++;
+    } catch (error) {
+      console.error("[discord] emoji sync", code, error);
+      if (/ 429/.test(String(error))) { rateLimited = true; break; }
+      failed++;
+    }
+  }
+  return { total: codes.length, created, failed, rateLimited, remaining: Math.max(0, missing.length - created - failed) };
 }
