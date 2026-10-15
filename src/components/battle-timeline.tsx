@@ -82,7 +82,8 @@ export function BattleTimeline({ battle }: { battle: BattleDetail }) {
   const y = (v: number) => PAD.t + (1 - (v - min) / range) * plotH;
   const tickCount = Math.min(range, 5);
   const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => Math.round(min + (range / tickCount) * i));
-  const xTicks = Array.from({ length: narrow ? 4 : 6 }, (_, i, list) => a + ((b - a) / (list.length - 1)) * i);
+  const xCount = narrow ? 4 : 6;
+  const xTicks = Array.from({ length: xCount }, (_, i) => a + ((b - a) / (xCount - 1)) * i);
 
   // Zoom com a rodinha, sem rolar a página.
   const viewRef = useRef(view); viewRef.current = view;

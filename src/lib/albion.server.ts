@@ -87,7 +87,10 @@ function sideOf(raw: unknown): KillSide {
 
 type Seen = { ip: number; gear: Gear };
 const PAGE = 51;
-const MAX_PAGES = 10;
+// Cada página de kills é grande (equipamento de todos os participantes). Poucas páginas, poucas por vez,
+// e cada uma é reduzida assim que chega, para não estourar a memória do Worker.
+const MAX_PAGES = 6;
+const PARALLEL_PAGES = 3;
 
 /** Etapa 1 (rápida): só o placar e os jogadores. Equipamento e IP chegam na etapa 2. */
 export async function getBattle(server: Server, id: number): Promise<BattleDetail> {
@@ -111,26 +114,46 @@ export async function getBattle(server: Server, id: number): Promise<BattleDetai
   };
 }
 
+type Reduced = { kill: BattleKill; sides: KillSide[] };
+const reduceEvent = (raw: unknown): Reduced => {
+  const e = obj(raw);
+  const sides = [e["Killer"], e["Victim"], ...list(e["Participants"]), ...list(e["GroupMembers"])].map(sideOf);
+  return { kill: { id: num(e["EventId"]), time: str(e["TimeStamp"]), fame: num(e["TotalVictimKillFame"]), killer: sides[0]!, victim: sides[1]! }, sides };
+};
+
 /** Etapa 2: kills da batalha (só as páginas que existem) e o equipamento/IP visto de cada jogador. */
 export async function getBattleKills(server: Server, id: number, totalKills: number): Promise<BattleKills> {
   if (!Number.isInteger(id) || id <= 0) throw new Error("Batalha inválida");
+  const cacheKey = `kills:${server}:${id}:${totalKills}`;
+  const hit = memory.get(cacheKey);
+  if (hit && Date.now() - hit.at < 300_000) return hit.value as BattleKills;
+
   const pageCount = Math.min(MAX_PAGES, Math.max(1, Math.ceil(totalKills / PAGE)));
-  const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) =>
-    api<unknown>(server, `/events/battle/${id}?offset=${i * PAGE}&limit=${PAGE}`, 60_000).then(list).catch(() => [] as unknown[])));
-  const events = pages.flat().map(obj);
+  const reduced: Reduced[] = [];
+  let failed = 0;
+  for (let first = 0; first < pageCount; first += PARALLEL_PAGES) {
+    const batch = Array.from({ length: Math.min(PARALLEL_PAGES, pageCount - first) }, (_, i) => first + i);
+    const results = await Promise.all(batch.map(async (index) => {
+      try {
+        const response = await fetch(`${HOSTS[server]}/api/gameinfo/events/battle/${id}?offset=${index * PAGE}&limit=${PAGE}`, { headers: { Accept: "application/json" } });
+        if (!response.ok) throw new Error(`Albion respondeu ${response.status}`);
+        return list(await response.json()).map(reduceEvent);
+      } catch (error) { console.error("[albion] events", id, index, error); failed++; return [] as Reduced[]; }
+    }));
+    for (const page of results) reduced.push(...page);
+  }
+  if (failed === pageCount) throw new Error("Albion não devolveu as kills");
 
   const seen = new Map<string, Seen>();
-  const remember = (raw: unknown) => {
-    const s = sideOf(raw);
-    if (!s.name || !s.ip) return;
-    if (!seen.has(s.name) || Object.keys(s.gear).length > Object.keys(seen.get(s.name)!.gear).length) seen.set(s.name, { ip: s.ip, gear: s.gear });
-  };
-  const kills: BattleKill[] = events.map((e) => {
-    remember(e["Killer"]); remember(e["Victim"]);
-    for (const member of list(e["Participants"])) remember(member);
-    for (const member of list(e["GroupMembers"])) remember(member);
-    return { id: num(e["EventId"]), time: str(e["TimeStamp"]), fame: num(e["TotalVictimKillFame"]), killer: sideOf(e["Killer"]), victim: sideOf(e["Victim"]) };
-  }).sort((a, b) => a.time.localeCompare(b.time));
-
-  return { kills, seen: Object.fromEntries(seen), truncated: totalKills > kills.length };
+  for (const { sides } of reduced) {
+    for (const s of sides) {
+      if (!s.name || !s.ip) continue;
+      if (!seen.has(s.name) || Object.keys(s.gear).length > Object.keys(seen.get(s.name)!.gear).length) seen.set(s.name, { ip: s.ip, gear: s.gear });
+    }
+  }
+  const kills = reduced.map((r) => r.kill).sort((a, b) => a.time.localeCompare(b.time));
+  const value: BattleKills = { kills, seen: Object.fromEntries(seen), truncated: totalKills > kills.length };
+  if (memory.size > 300) memory.clear();
+  memory.set(cacheKey, { at: Date.now(), value });
+  return value;
 }
