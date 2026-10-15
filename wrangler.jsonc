@@ -4,5 +4,7 @@
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Mantém as variáveis cadastradas no painel da Cloudflare a cada deploy (senão o `wrangler deploy` pode apagá-las)
+  "keep_vars": true
 }

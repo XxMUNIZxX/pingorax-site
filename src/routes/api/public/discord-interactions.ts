@@ -12,7 +12,11 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
         endpoint: "discord-interactions",
         DISCORD_PUBLIC_KEY: !cfg.publicKey ? "faltando" : keyOk ? "ok" : `formato inválido (deve ter 64 letras/números, tem ${cfg.publicKey.length})`,
         DISCORD_BOT_TOKEN: cfg.botToken ? "ok" : "faltando",
-        DISCORD_CHANNEL_ID: cfg.channelId ? "ok" : "faltando",
+        DISCORD_CHANNEL_ID: cfg.channelId ? (/^[0-9]{5,25}$/.test(cfg.channelId) ? "ok" : "formato inválido (use só o número do canal, sem barra)") : "faltando",
+        // Comparação: as variáveis do Supabase (que já funcionam) chegam ao servidor?
+        SUPABASE_URL: process.env["SUPABASE_URL"] ? "ok" : "faltando",
+        // Só os NOMES das variáveis que o servidor enxerga (nunca os valores).
+        variaveis_visiveis: Object.keys(process.env).filter((name) => /^(DISCORD|SUPABASE|SITE|VITE)/.test(name)).sort(),
       }, { headers: { "Cache-Control": "no-store" } });
     },
     POST: async ({ request }) => {
