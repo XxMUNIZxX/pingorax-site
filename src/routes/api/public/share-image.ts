@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/api/public/share-image")({
   server: { handlers: { GET: async ({ request }) => {
+    const { serverEnv } = await import("@/lib/server-env");
     const version = new URL(request.url).searchParams.get("v");
     if (version && !/^[0-9a-f-]{36}\.jpg$/.test(version)) return new Response("Invalid image", { status: 400 });
-    const url = process.env["SUPABASE_URL"];
-    const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
+    const url = serverEnv("SUPABASE_URL");
+    const key = serverEnv("SUPABASE_PUBLISHABLE_KEY");
     if (!url || !key) return new Response("Image unavailable", { status: 503 });
     const { publicShareClient } = await import("@/lib/share-image.server");
     const client = publicShareClient(url, key);
