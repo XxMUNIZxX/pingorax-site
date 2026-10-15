@@ -6,6 +6,7 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
     // Abrir este endereço no navegador mostra o que está configurado (só sim/não, nunca os valores).
     GET: async () => {
       const { discordConfig } = await import("@/lib/discord.server");
+      const { serverEnv } = await import("@/lib/server-env");
       const cfg = discordConfig();
       const keyOk = !!cfg.publicKey && /^[0-9a-f]{64}$/.test(cfg.publicKey);
       return Response.json({
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
         DISCORD_BOT_TOKEN: cfg.botToken ? "ok" : "faltando",
         DISCORD_CHANNEL_ID: cfg.channelId ? (/^[0-9]{5,25}$/.test(cfg.channelId) ? "ok" : "formato inválido (use só o número do canal, sem barra)") : "faltando",
         // Comparação: as variáveis do Supabase (que já funcionam) chegam ao servidor?
-        SUPABASE_URL: process.env["SUPABASE_URL"] ? "ok" : "faltando",
+        SUPABASE_URL: serverEnv("SUPABASE_URL") ? "ok" : "faltando",
         // Só os NOMES das variáveis que o servidor enxerga (nunca os valores).
         variaveis_visiveis: Object.keys(process.env).filter((name) => /^(DISCORD|SUPABASE|SITE|VITE)/.test(name)).sort(),
       }, { headers: { "Cache-Control": "no-store" } });

@@ -1,5 +1,6 @@
 import { publicShareClient } from "@/lib/share-image.server";
 import { SHARE_ORIGIN } from "@/lib/share-image";
+import { serverEnv } from "@/lib/server-env";
 
 const API = "https://discord.com/api/v10";
 const COLOR = 0x5fd0e8;
@@ -13,13 +14,13 @@ type Row = {
 
 export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined };
 // Colar a chave com espaço/quebra de linha no fim é comum: limpa antes de usar.
-const env = (name: string) => process.env[name]?.trim() || undefined;
+const env = serverEnv;
 export const discordConfig = (): DiscordConfig => ({
   publicKey: env("DISCORD_PUBLIC_KEY")?.toLowerCase(), botToken: env("DISCORD_BOT_TOKEN"), channelId: env("DISCORD_CHANNEL_ID"),
 });
 
 export function anonClient() {
-  const url = process.env["SUPABASE_URL"]; const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
+  const url = serverEnv("SUPABASE_URL"); const key = serverEnv("SUPABASE_PUBLISHABLE_KEY");
   if (!url || !key) throw new Error("Servidor sem SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY.");
   return publicShareClient(url, key);
 }
