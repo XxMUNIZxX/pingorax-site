@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getShareImage } from "@/lib/share-image.functions";
 import { DEFAULT_SHARE_IMAGE } from "@/lib/share-image";
+import { useServerFn } from "@tanstack/react-start";
+import { refreshDiscordMessage } from "@/lib/discord.functions";
 import { BuildGear } from "@/components/build-view";
 
 export const Route = createFileRoute("/evento/$id")({
@@ -85,6 +87,7 @@ function EventPage() {
   const [nick, setNick] = useState("");
   const [weaponId, setWeaponId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const refreshDiscord = useServerFn(refreshDiscordMessage);
   const [openBuild, setOpenBuild] = useState<string | null>(null);
 
   useEffect(() => {
@@ -114,6 +117,7 @@ function EventPage() {
       toast.error(error.code === "23505" ? "Esse nick já pingou neste conteúdo" : error.message);
     } else {
       toast.success("Ping confirmado! Nos vemos lá.");
+      void refreshDiscord({ data: { eventId: id } }).catch(() => undefined);
       setNick(""); setWeaponId(null);
     }
     qc.invalidateQueries({ queryKey: ["event", id] });

@@ -14,6 +14,8 @@ import { WeaponCatalogPicker } from "@/components/weapon-catalog-picker";
 import { uploadWeaponIcon } from "@/lib/weapon-icons";
 import { EventEditorsDialog } from "@/components/event-editors-dialog";
 import { useContentOptions, withCurrentValue } from "@/lib/content-options";
+import { useServerFn } from "@tanstack/react-start";
+import { postEventToDiscord, refreshDiscordMessage } from "@/lib/discord.functions";
 import { BuildPicker } from "@/components/build-picker";
 import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
 import { Plus, X } from "lucide-react";
@@ -32,6 +34,24 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   const qc = useQueryClient();
   const { data: events, isPending, isError } = useQuery({ queryKey: ["managed-events", userId, isAdmin], queryFn: fetchManagedEvents });
   const [draft, setDraft] = useState<Draft | null>(null);
+  const postToDiscord = useServerFn(postEventToDiscord);
+  const refreshDiscord = useServerFn(refreshDiscordMessage);
+  const [posting, setPosting] = useState<string | null>(null);
+  const posted = useQuery({ queryKey: ["discord-posts"], queryFn: async () => {
+    const { data, error } = await supabase.from("discord_posts").select("event_id");
+    if (error) throw error;
+    return new Set((data ?? []).map((row) => row.event_id));
+  } });
+
+  async function sendToDiscord(id: string) {
+    setPosting(id);
+    try {
+      const result = await postToDiscord({ data: { eventId: id } });
+      if (result.ok) { toast.success(result.updated ? "Mensagem do Discord atualizada." : "Postado no Discord!"); void qc.invalidateQueries({ queryKey: ["discord-posts"] }); }
+      else toast.error(result.error);
+    } catch { toast.error("Não foi possível postar no Discord."); }
+    finally { setPosting(null); }
+  }
 
   async function removeEvent(id: string) {
     if (!confirm("Apagar este conteúdo?")) return;
@@ -39,10 +59,11 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     if (error) { toast.error("Não foi possível apagar o conteúdo."); return; }
     qc.invalidateQueries({ queryKey: ["managed-events"] });
   }
-  async function removeSignup(id: string) {
+  async function removeSignup(id: string, eventId: string) {
     const { error } = await supabase.from("signups").delete().eq("id", id);
     if (error) { toast.error("Não foi possível remover o jogador."); return; }
     qc.invalidateQueries({ queryKey: ["managed-events"] });
+    void refreshDiscord({ data: { eventId } }).catch(() => undefined);
   }
   function edit(e: GameEvent) {
     setDraft({
@@ -82,6 +103,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" asChild><Link to="/evento/$id" params={{ id: e.id }}>Ver</Link></Button>
                 <Button size="sm" variant="secondary" onClick={() => edit(e)}>Editar</Button>
+                <Button size="sm" variant="outline" disabled={posting === e.id} onClick={() => sendToDiscord(e.id)}>{posting === e.id ? "Enviando..." : posted.data?.has(e.id) ? "Atualizar no Discord" : "Postar no Discord"}</Button>
                 {(isAdmin || (canCreate && e.created_by === userId)) && <><EventEditorsDialog eventId={e.id} title={e.title} /><Button size="sm" variant="destructive" onClick={() => removeEvent(e.id)}>Apagar</Button></>}
               </div>
             </div>
@@ -94,7 +116,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                     {list.map((s) => (
                       <div key={s.id} className="mt-1 flex items-center justify-between">
                         <span>{s.nick}</span>
-                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSignup(s.id)}>remover</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSignup(s.id, e.id)}>remover</Button>
                       </div>
                     ))}
                   </div>
@@ -110,6 +132,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
 
 function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
+  const refreshDiscord = useServerFn(refreshDiscordMessage);
   const options = useContentOptions();
   const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
   const modeList = withCurrentValue(options.modes, draft.mode);
@@ -159,6 +182,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
       if (error) throw error;
     }
     toast.success("Conteúdo salvo");
+    void refreshDiscord({ data: { eventId } }).catch(() => undefined);
     onSaved();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar as armas. Tente novamente.");
