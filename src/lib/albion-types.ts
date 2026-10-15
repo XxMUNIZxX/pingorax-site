@@ -21,6 +21,8 @@ export type BattleDetail = {
   players: BattlePlayer[]; alliances: BattleGroup[]; guilds: BattleGroup[]; kills: BattleKill[]; killsShown: number;
 };
 
+export type BattleKills = { kills: BattleKill[]; seen: Record<string, { ip: number; gear: Gear }>; truncated: boolean };
+
 /** "1.4M", "339.6k"... */
 export function shortNumber(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
