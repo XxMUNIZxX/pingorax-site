@@ -80,3 +80,9 @@ Qualquer criador pode postar no servidor dele:
 4. O criador cola o código em **Discord do meu servidor** e passa a escolher esse canal em **Postar no Discord**.
 
 O código é assinado com o token do bot, então não pode ser falsificado, e só quem gerencia o servidor consegue gerá-lo. Em bancos já criados, rode `supabase/migrations/0007_discord_channels.sql`. Sem verificação do app, o Discord limita o bot a cerca de 100 servidores.
+
+### Botão Sair e builds em grupo
+
+- O card do Discord ganhou um botão **Sair**: quem pingou pelo Discord tira o próprio ping com um clique. O sistema guarda o ID do Discord de quem pingou (invisível ao público) para que ninguém remova o ping de outra pessoa. Pings feitos pelo site continuam sendo removidos pelo caller.
+- Na aba **Builds → Grupos** dá para montar composições juntando builds já prontas, com papel e quantidade de cada uma.
+- Em bancos já criados, rode `supabase/migrations/0008_build_groups_discord_leave.sql` no SQL Editor (depois de fazer o deploy).

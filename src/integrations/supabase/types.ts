@@ -98,6 +98,84 @@ export type Database = {
         }
         Relationships: []
       }
+      build_groups: {
+        Row: {
+          author_name: string | null
+          content_type: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          content_type?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          content_type?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      build_group_members: {
+        Row: {
+          build_id: string
+          created_at: string
+          group_id: string
+          id: string
+          position: number
+          quantity: number
+          role: string | null
+        }
+        Insert: {
+          build_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+          position?: number
+          quantity?: number
+          role?: string | null
+        }
+        Update: {
+          build_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          position?: number
+          quantity?: number
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "build_group_members_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "build_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "build_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discord_channels: {
         Row: {
           channel_id: string
@@ -416,6 +494,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      discord_leave: {
+        Args: { p_event: string; p_discord_user: string }
+        Returns: number
+      }
+      discord_signup: {
+        Args: { p_event: string; p_weapon: string; p_nick: string; p_discord_user: string }
+        Returns: undefined
+      }
       admin_rename_content_option: {
         Args: { _id: string; _name: string }
         Returns: string
