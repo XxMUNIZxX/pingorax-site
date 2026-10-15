@@ -57,10 +57,12 @@ export function buildMessage(event: Row) {
   const description = [info, event.description ? clip(event.description, 600) : ""].filter(Boolean).join("\n\n");
 
   const link = `${SHARE_ORIGIN}/evento/${event.id}`;
-  const buttons: object[] = weapons.slice(0, 24).map((w) => {
+  // Limite do Discord: 25 botões (5 linhas x 5). Sobram 23 armas + "Sair" + "Abrir no site".
+  const buttons: object[] = weapons.slice(0, 23).map((w) => {
     const left = w.slots - event.signups.filter((s) => s.weapon_id === w.id).length;
     return { type: 2, style: left > 0 && !full ? 1 : 2, disabled: left <= 0 || full, custom_id: `p:${event.id}:${w.id}`, label: clip(`${w.name} (${Math.max(0, left)})`, 80) };
   });
+  buttons.push({ type: 2, style: 4, custom_id: `l:${event.id}`, label: "Sair" });
   buttons.push({ type: 2, style: 5, label: "Abrir no site", url: link });
   const rows = [];
   for (let i = 0; i < buttons.length; i += 5) rows.push({ type: 1, components: buttons.slice(i, i + 5) });
@@ -143,9 +145,9 @@ export async function verifyDiscordRequest(publicKey: string, signature: string 
 type Interaction = {
   type: number;
   channel_id?: string; guild_id?: string;
-  member?: { nick?: string | null; permissions?: string; user?: { username?: string; global_name?: string | null } };
+  member?: { nick?: string | null; permissions?: string; user?: { id?: string; username?: string; global_name?: string | null } };
   data?: { name?: string; options?: { name: string }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
-  user?: { username?: string; global_name?: string | null };
+  user?: { id?: string; username?: string; global_name?: string | null };
 };
 
 const ephemeral = (content: string) => ({ type: 4, data: { content, flags: 64 } });
@@ -167,6 +169,21 @@ export async function handleInteraction(body: Interaction) {
   }
 
   const customId = body.data?.custom_id ?? "";
+  const discordUserId = body.member?.user?.id ?? body.user?.id ?? "";
+
+  // Clique em "Sair" -> remove o ping que esta pessoa fez pelo Discord
+  if (body.type === 3 && customId.startsWith("l:")) {
+    const match = customId.match(new RegExp(`^l:(${UUID})$`));
+    if (!match) return ephemeral("Botão desconhecido.");
+    if (!discordUserId) return ephemeral("Não consegui identificar você no Discord.");
+    const { data, error } = await anonClient().rpc("discord_leave", { p_event: match[1]!, p_discord_user: discordUserId });
+    if (error) { console.error("[discord] leave", error); return ephemeral("Não foi possível tirar seu ping agora. Tente de novo."); }
+    if (!data) return ephemeral("Você não tem ping neste conteúdo pelo Discord. Se pingou pelo site, peça ao caller para remover.");
+    const event = await loadEvent(match[1]!);
+    if (!event) return ephemeral("Esse conteúdo não existe mais.");
+    return { type: 7, data: buildMessage(event) };
+  }
+
   // Clique no botão da arma -> abre a janelinha pedindo o nick
   if (body.type === 3) {
     const match = customId.match(new RegExp(`^p:(${UUID}):(${UUID})$`));
@@ -185,7 +202,7 @@ export async function handleInteraction(body: Interaction) {
     if (!match) return ephemeral("Pedido inválido.");
     if (nick.length < 2 || nick.length > 32) return ephemeral("O nick deve ter de 2 a 32 caracteres.");
     const [, eventId, weaponId] = match as unknown as [string, string, string];
-    const { error } = await anonClient().from("signups").insert({ event_id: eventId, weapon_id: weaponId, nick });
+    const { error } = await anonClient().rpc("discord_signup", { p_event: eventId, p_weapon: weaponId, p_nick: nick, p_discord_user: discordUserId });
     if (error) {
       if (error.code === "23505") return ephemeral(`O nick **${safeNick(nick)}** já pingou neste conteúdo.`);
       if (/lotado|esgotadas|inválid/i.test(error.message)) return ephemeral(`Não deu: ${error.message}.`);

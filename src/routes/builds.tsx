@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AuthForm, usePanelAccess } from "@/components/panel-access";
 import { BuildCard, BuildDialog } from "@/components/build-card";
 import { BuildEditor } from "@/components/build-editor";
+import { BuildGroupsPanel } from "@/components/build-groups-panel";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BuildWeaponFilter, NO_CATEGORY, groupWeapons } from "@/components/build-weapon-filter";
 import { baseOf, draftFromBuild, emptyBuildDraft, fetchBuilds, fetchBuildUsage, normalize, type Build, type BuildDraft } from "@/lib/builds";
 import { useContentOptions } from "@/lib/content-options";
@@ -31,6 +33,7 @@ export const Route = createFileRoute("/builds")({
 
 type Editing = { id?: string; draft: BuildDraft } | null;
 type Sort = "popular" | "recent" | "name";
+type Tab = "builds" | "grupos";
 
 function BuildsPage() {
   const qc = useQueryClient();
@@ -53,6 +56,7 @@ function BuildsPage() {
   const [sort, setSort] = useState<Sort>("popular");
   const [onlyMine, setOnlyMine] = useState(false);
   const [showGear, setShowGear] = useState(true);
+  const [tab, setTab] = useState<Tab>("builds");
 
   const groups = useMemo(() => groupWeapons(catalog.data ?? []), [catalog.data]);
   const categoryOfBase = useMemo(() => {
@@ -98,7 +102,7 @@ function BuildsPage() {
   const openedBuild = opened ? all.find((b) => b.id === opened) ?? null : null;
 
   function refresh() {
-    for (const key of ["builds", "build-usage", "event", "events", "managed-events"]) void qc.invalidateQueries({ queryKey: [key] });
+    for (const key of ["builds", "build-groups", "build-usage", "event", "events", "managed-events"]) void qc.invalidateQueries({ queryKey: [key] });
   }
   function startNew() {
     if (!access.session) { setNeedLogin(true); return; }
@@ -127,11 +131,21 @@ function BuildsPage() {
           <p className="mt-1 text-sm text-muted-foreground">Escolha a arma e o tipo de conteúdo para achar a build. Qualquer pessoa com conta pode criar a sua.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="gold" onClick={startNew}><Plus /> Nova build</Button>
+          {tab === "builds" && <Button variant="gold" onClick={startNew}><Plus /> Nova build</Button>}
           {access.session && <Button variant="ghost" onClick={() => supabase.auth.signOut()}>Sair</Button>}
         </div>
       </div>
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="mt-6">
+        <TabsList>
+          <TabsTrigger value="builds">Builds</TabsTrigger>
+          <TabsTrigger value="grupos">Grupos</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {tab === "grupos" && <div className="mt-5"><BuildGroupsPanel userId={userId} isAdmin={access.isAdmin} onNeedLogin={() => setNeedLogin(true)} /></div>}
+
+      {tab === "builds" && <>
       {editing && <BuildEditor key={editing.id ?? "new"} id={editing.id} initial={editing.draft} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
 
       <div className="mt-8">
@@ -175,6 +189,7 @@ function BuildsPage() {
 
       <BuildDialog build={openedBuild} uses={openedBuild ? uses(openedBuild) : 0} canChange={openedBuild ? canChange(openedBuild) : false}
         onClose={() => setOpened(null)} onEdit={startEdit} onDelete={remove} />
+      </>}
     </main>
   );
 }
