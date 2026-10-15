@@ -86,3 +86,6 @@ O código é assinado com o token do bot, então não pode ser falsificado, e s�
 - O card do Discord ganhou um botão **Sair**: quem pingou pelo Discord tira o próprio ping com um clique. O sistema guarda o ID do Discord de quem pingou (invisível ao público) para que ninguém remova o ping de outra pessoa. Pings feitos pelo site continuam sendo removidos pelo caller.
 - Na aba **Builds → Grupos** dá para montar composições juntando builds já prontas, com papel e quantidade de cada uma.
 - Em bancos já criados, rode `supabase/migrations/0008_build_groups_discord_leave.sql` no SQL Editor (depois de fazer o deploy).
+
+### Ícones das armas no card do Discord
+O bot cria automaticamente, na primeira vez que posta, um emoji do aplicativo para cada arma (a partir do ícone do Albion). Precisa só de `DISCORD_APP_ID` e `DISCORD_BOT_TOKEN` no Worker. Armas sem ícone do catálogo ficam só com o nome.
