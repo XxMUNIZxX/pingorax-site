@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ItemSlot } from "@/components/item-slot";
 import { BuildGear, useItemNames } from "@/components/build-view";
+import { BattleTimeline } from "@/components/battle-timeline";
+import { Composition, IpByRole } from "@/components/battle-extras";
 import { fetchBattle } from "@/lib/albion.functions";
 import { gameDate, shortNumber, type BattleDetail, type BattleGroup, type BattleKill, type BattlePlayer, type Server } from "@/lib/albion-types";
 
@@ -50,6 +52,8 @@ function Battle({ battle }: { battle: BattleDetail }) {
         <GroupTable title={`Guildas (${battle.guilds.length})`} first="Guilda" rows={battle.guilds} showAlliance />
       </div>
 
+      <BattleTimeline battle={battle} />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Highlight label="Mais kills" player={highlights.topKills} value={highlights.topKills ? String(highlights.topKills.kills) : "—"} unit="kills" sub={highlights.topKills ? `${highlights.topKills.kills} / ${highlights.topKills.deaths}` : ""} color="text-emerald-400" />
         <HighlightDeath kill={highlights.bigDeath} />
@@ -59,6 +63,8 @@ function Battle({ battle }: { battle: BattleDetail }) {
 
       <PlayersTable players={battle.players} nameOf={nameOf} />
       <KillsTable kills={battle.kills} nameOf={nameOf} total={battle.totalKills} />
+      <IpByRole players={battle.players} />
+      <Composition players={battle.players} />
     </div>
   );
 }

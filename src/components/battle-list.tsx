@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ export function BattleList({ server, onServer }: { server: Server; onServer: (se
   const [minPlayers, setMinPlayers] = useState(10);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  const navigate = useNavigate({ from: "/lutas" });
+  const open = (id: number) => void navigate({ search: { batalha: id, servidor: server } });
   const result = useQuery({
     queryKey: ["battles", server, minPlayers, query.trim().toLowerCase(), page],
     queryFn: () => fetchBattleList({ data: { server, page, minPlayers, query } }),
@@ -43,10 +45,11 @@ export function BattleList({ server, onServer }: { server: Server; onServer: (se
           </thead>
           <tbody>
             {battles.map((b) => (
-              <tr key={b.id} className="border-t border-border/60 hover:bg-secondary/40">
+              <tr key={b.id} tabIndex={0} onClick={() => open(b.id)} onKeyDown={(e) => { if (e.key === "Enter") open(b.id); }}
+                className="cursor-pointer border-t border-border/60 hover:bg-secondary/40 focus-visible:bg-secondary/40 focus-visible:outline-none">
                 <td className="whitespace-nowrap p-3 text-muted-foreground">{gameDate(b.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
                 <td className="p-3">
-                  <Link to="/lutas" search={{ batalha: b.id, servidor: server }} className="font-semibold text-primary hover:underline">#{b.id}</Link>
+                  <Link to="/lutas" search={{ batalha: b.id, servidor: server }} className="font-semibold text-primary hover:underline" onClick={(e) => e.stopPropagation()}>#{b.id}</Link>
                   <div className="text-xs text-muted-foreground">{b.groups.join(", ") || "—"}</div>
                 </td>
                 <td className="p-3 text-right">{b.players}</td>
