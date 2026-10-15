@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import type { BattleDetail, BattleListItem } from "@/lib/albion-types";
+import type { BattleDetail, BattleKills, BattleListItem } from "@/lib/albion-types";
 
 const server = z.enum(["americas", "europe", "asia"]);
 
@@ -29,5 +29,18 @@ export const fetchBattle = createServerFn({ method: "GET" })
     } catch (error) {
       console.error("[albion] battle", error);
       return { ok: false, error: "Não consegui carregar essa batalha agora. Confira o número e tente de novo." };
+    }
+  });
+
+/** Kills da batalha, equipamento e IP dos jogadores (etapa 2, depois do placar). */
+export const fetchBattleKills = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ server, id: z.number().int().positive(), totalKills: z.number().int().min(0).max(100000) }).parse(value))
+  .handler(async ({ data }): Promise<{ ok: true; data: BattleKills } | { ok: false; error: string }> => {
+    try {
+      const { getBattleKills } = await import("@/lib/albion.server");
+      return { ok: true, data: await getBattleKills(data.server, data.id, data.totalKills) };
+    } catch (error) {
+      console.error("[albion] kills", error);
+      return { ok: false, error: "Não consegui carregar as kills agora." };
     }
   });

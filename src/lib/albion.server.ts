@@ -1,4 +1,4 @@
-import type { BattleDetail, BattleListItem, BattlePlayer, BattleKill, Gear, KillSide, Server } from "@/lib/albion-types";
+import type { BattleDetail, BattleKills, BattleListItem, BattlePlayer, BattleKill, Gear, KillSide, Server } from "@/lib/albion-types";
 
 // API pública do jogo (sem chave). Cada servidor do Albion tem o seu endereço.
 const HOSTS: Record<Server, string> = {
@@ -8,15 +8,30 @@ const HOSTS: Record<Server, string> = {
 };
 
 const memory = new Map<string, { at: number; value: unknown }>();
+/**
+ * Busca na API do jogo com dois níveis de cache: memória do servidor (rápido) e cache da Cloudflare
+ * (compartilhado entre todos os visitantes). Assim a API lenta do Albion é chamada poucas vezes.
+ */
 async function api<T>(server: Server, path: string, ttlMs: number): Promise<T> {
-  const key = `${server}${path}`;
-  const hit = memory.get(key);
+  const url = `${HOSTS[server]}/api/gameinfo${path}`;
+  const hit = memory.get(url);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
-  const response = await fetch(`${HOSTS[server]}/api/gameinfo${path}`, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Albion respondeu ${response.status}`);
-  const value = (await response.json()) as T;
+  const edge = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+  let value: T | undefined;
+  if (edge) {
+    try { const cached = await edge.match(url); if (cached) value = (await cached.json()) as T; } catch { /* sem cache */ }
+  }
+  if (value === undefined) {
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error(`Albion respondeu ${response.status}`);
+    const text = await response.text();
+    value = JSON.parse(text) as T;
+    if (edge) {
+      try { await edge.put(url, new Response(text, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${Math.max(1, Math.round(ttlMs / 1000))}` } })); } catch { /* sem cache */ }
+    }
+  }
   if (memory.size > 300) memory.clear();
-  memory.set(key, { at: Date.now(), value });
+  memory.set(url, { at: Date.now(), value });
   return value;
 }
 
@@ -71,15 +86,38 @@ function sideOf(raw: unknown): KillSide {
 }
 
 type Seen = { ip: number; gear: Gear };
+const PAGE = 51;
+const MAX_PAGES = 10;
 
+/** Etapa 1 (rápida): só o placar e os jogadores. Equipamento e IP chegam na etapa 2. */
 export async function getBattle(server: Server, id: number): Promise<BattleDetail> {
   if (!Number.isInteger(id) || id <= 0) throw new Error("Batalha inválida");
   const battle = obj(await api<unknown>(server, `/battles/${id}`, 120_000));
-  // Até 6 páginas de kills (51 por vez) em paralelo: o suficiente para a maioria das lutas.
-  const pages = await Promise.all([0, 1, 2, 3, 4, 5].map((i) =>
-    api<unknown>(server, `/events/battle/${id}?offset=${i * 51}&limit=51`, 60_000).then(list).catch(() => [] as unknown[])));
+  const players: BattlePlayer[] = Object.values(obj(battle["players"])).map(obj).map((p) => ({
+    name: str(p["name"]), guild: str(p["guildName"]), alliance: str(p["allianceName"]),
+    kills: num(p["kills"]), deaths: num(p["deaths"]), fame: num(p["killFame"]), ip: 0, gear: {},
+  }));
+  const alliances = Object.values(obj(battle["alliances"])).map(obj).map((a) => ({
+    name: str(a["name"]), players: players.filter((p) => p.alliance && p.alliance === str(a["name"])).length,
+    kills: num(a["kills"]), deaths: num(a["deaths"]), ip: 0, fame: num(a["killFame"]),
+  })).sort((a, b) => b.fame - a.fame);
+  const guilds = Object.values(obj(battle["guilds"])).map(obj).map((g) => ({
+    name: str(g["name"]), alliance: str(g["alliance"]), players: players.filter((p) => p.guild && p.guild === str(g["name"])).length,
+    kills: num(g["kills"]), deaths: num(g["deaths"]), ip: 0, fame: num(g["killFame"]),
+  })).sort((a, b) => b.fame - a.fame);
+  return {
+    id, server, startTime: str(battle["startTime"]), endTime: str(battle["endTime"]),
+    totalKills: num(battle["totalKills"]), totalFame: num(battle["totalFame"]), players, alliances, guilds, kills: [], killsShown: 0,
+  };
+}
+
+/** Etapa 2: kills da batalha (só as páginas que existem) e o equipamento/IP visto de cada jogador. */
+export async function getBattleKills(server: Server, id: number, totalKills: number): Promise<BattleKills> {
+  if (!Number.isInteger(id) || id <= 0) throw new Error("Batalha inválida");
+  const pageCount = Math.min(MAX_PAGES, Math.max(1, Math.ceil(totalKills / PAGE)));
+  const pages = await Promise.all(Array.from({ length: pageCount }, (_, i) =>
+    api<unknown>(server, `/events/battle/${id}?offset=${i * PAGE}&limit=${PAGE}`, 60_000).then(list).catch(() => [] as unknown[])));
   const events = pages.flat().map(obj);
-  const totalKills = num(battle["totalKills"]);
 
   const seen = new Map<string, Seen>();
   const remember = (raw: unknown) => {
@@ -87,7 +125,6 @@ export async function getBattle(server: Server, id: number): Promise<BattleDetai
     if (!s.name || !s.ip) return;
     if (!seen.has(s.name) || Object.keys(s.gear).length > Object.keys(seen.get(s.name)!.gear).length) seen.set(s.name, { ip: s.ip, gear: s.gear });
   };
-
   const kills: BattleKill[] = events.map((e) => {
     remember(e["Killer"]); remember(e["Victim"]);
     for (const member of list(e["Participants"])) remember(member);
@@ -95,31 +132,5 @@ export async function getBattle(server: Server, id: number): Promise<BattleDetai
     return { id: num(e["EventId"]), time: str(e["TimeStamp"]), fame: num(e["TotalVictimKillFame"]), killer: sideOf(e["Killer"]), victim: sideOf(e["Victim"]) };
   }).sort((a, b) => a.time.localeCompare(b.time));
 
-  const players: BattlePlayer[] = Object.values(obj(battle["players"])).map(obj).map((p) => {
-    const name = str(p["name"]);
-    const info = seen.get(name);
-    return {
-      name, guild: str(p["guildName"]), alliance: str(p["allianceName"]),
-      kills: num(p["kills"]), deaths: num(p["deaths"]), fame: num(p["killFame"]), ip: info?.ip ?? 0, gear: info?.gear ?? {},
-    };
-  });
-
-  const ipOf = (rows: BattlePlayer[]) => {
-    const known = rows.filter((p) => p.ip > 0);
-    return known.length ? Math.round(known.reduce((sum, p) => sum + p.ip, 0) / known.length) : 0;
-  };
-  const alliances = Object.values(obj(battle["alliances"])).map(obj).map((a) => {
-    const rows = players.filter((p) => p.alliance && p.alliance === str(a["name"]));
-    return { name: str(a["name"]), players: rows.length, kills: num(a["kills"]), deaths: num(a["deaths"]), ip: ipOf(rows), fame: num(a["killFame"]) };
-  }).sort((a, b) => b.fame - a.fame);
-  const guilds = Object.values(obj(battle["guilds"])).map(obj).map((g) => {
-    const rows = players.filter((p) => p.guild && p.guild === str(g["name"]));
-    return { name: str(g["name"]), alliance: str(g["alliance"]), players: rows.length, kills: num(g["kills"]), deaths: num(g["deaths"]), ip: ipOf(rows), fame: num(g["killFame"]) };
-  }).sort((a, b) => b.fame - a.fame);
-
-  return {
-    id, server, startTime: str(battle["startTime"]), endTime: str(battle["endTime"]),
-    totalKills, totalFame: num(battle["totalFame"]), players, alliances, guilds, kills,
-    killsShown: kills.length,
-  };
+  return { kills, seen: Object.fromEntries(seen), truncated: totalKills > kills.length };
 }

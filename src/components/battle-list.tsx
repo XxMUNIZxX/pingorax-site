@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export function BattleList({ server, onServer }: { server: Server; onServer: (se
     queryKey: ["battles", server, minPlayers, query.trim().toLowerCase(), page],
     queryFn: () => fetchBattleList({ data: { server, page, minPlayers, query } }),
     refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
     staleTime: 10_000,
   });
   const battles = result.data?.ok ? result.data.battles : [];

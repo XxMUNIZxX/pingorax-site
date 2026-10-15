@@ -8,7 +8,8 @@ import { ItemSlot } from "@/components/item-slot";
 import { BuildGear, useItemNames } from "@/components/build-view";
 import { BattleTimeline } from "@/components/battle-timeline";
 import { Composition, IpByRole } from "@/components/battle-extras";
-import { fetchBattle } from "@/lib/albion.functions";
+import { fetchBattle, fetchBattleKills } from "@/lib/albion.functions";
+import { mergeKills } from "@/lib/battle-analysis";
 import { gameDate, shortNumber, type BattleDetail, type BattleGroup, type BattleKill, type BattlePlayer, type Server } from "@/lib/albion-types";
 
 const PAGE_SIZE = 10;
@@ -16,18 +17,26 @@ const card = "rounded-xl border border-border bg-card/60";
 const th = "p-2.5 text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground";
 
 export function BattleDetailView({ server, id }: { server: Server; id: number }) {
-  const result = useQuery({ queryKey: ["battle", server, id], queryFn: () => fetchBattle({ data: { server, id } }), staleTime: 60_000 });
+  const summary = useQuery({ queryKey: ["battle", server, id], queryFn: () => fetchBattle({ data: { server, id } }), staleTime: 60_000 });
+  const base = summary.data?.ok ? summary.data.battle : null;
+  // Placar aparece já; kills, equipamentos e IP chegam logo depois.
+  const killsQuery = useQuery({
+    queryKey: ["battle-kills", server, id], enabled: !!base, staleTime: 60_000,
+    queryFn: () => fetchBattleKills({ data: { server, id, totalKills: base?.totalKills ?? 0 } }),
+  });
+  const extra = killsQuery.data?.ok ? killsQuery.data.data : undefined;
+  const battle = useMemo(() => (base ? mergeKills(base, extra) : null), [base, extra]);
   return (
     <div>
       <Button variant="ghost" size="sm" asChild><Link to="/lutas" search={{ servidor: server }}><ArrowLeft /> Voltar às batalhas</Link></Button>
-      {result.isLoading && <p className="mt-6 text-muted-foreground">Carregando batalha #{id}...</p>}
-      {result.data && !result.data.ok && <p className="mt-6 text-destructive">{result.data.error}</p>}
-      {result.data?.ok && <Battle battle={result.data.battle} />}
+      {summary.isLoading && <p className="mt-6 text-muted-foreground">Carregando batalha #{id}...</p>}
+      {summary.data && !summary.data.ok && <p className="mt-6 text-destructive">{summary.data.error}</p>}
+      {battle && <Battle battle={battle} loadingKills={killsQuery.isLoading} killsFailed={killsQuery.data?.ok === false} truncated={extra?.truncated ?? false} />}
     </div>
   );
 }
 
-function Battle({ battle }: { battle: BattleDetail }) {
+function Battle({ battle, loadingKills, killsFailed, truncated }: { battle: BattleDetail; loadingKills: boolean; killsFailed: boolean; truncated: boolean }) {
   const nameOf = useItemNames();
   const title = (battle.alliances.length ? battle.alliances : battle.guilds).slice(0, 4).map((g) => g.name).join(", ") || `Batalha #${battle.id}`;
 
@@ -52,7 +61,8 @@ function Battle({ battle }: { battle: BattleDetail }) {
         <GroupTable title={`Guildas (${battle.guilds.length})`} first="Guilda" rows={battle.guilds} showAlliance />
       </div>
 
-      <BattleTimeline battle={battle} />
+      {(loadingKills || killsFailed) && <p className="rounded-lg border border-border bg-card/60 p-3 text-sm text-muted-foreground">{loadingKills ? "Carregando kills, equipamentos e linha do tempo..." : "Não consegui carregar as kills agora. O placar acima está completo; recarregue a página para tentar de novo."}</p>}
+      {battle.kills.length > 0 && <BattleTimeline battle={battle} />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Highlight label="Mais kills" player={highlights.topKills} value={highlights.topKills ? String(highlights.topKills.kills) : "—"} unit="kills" sub={highlights.topKills ? `${highlights.topKills.kills} / ${highlights.topKills.deaths}` : ""} color="text-emerald-400" />
@@ -62,9 +72,9 @@ function Battle({ battle }: { battle: BattleDetail }) {
       </div>
 
       <PlayersTable players={battle.players} nameOf={nameOf} />
-      <KillsTable kills={battle.kills} nameOf={nameOf} total={battle.totalKills} />
-      <IpByRole players={battle.players} />
-      <Composition players={battle.players} />
+      {battle.kills.length > 0 && <KillsTable kills={battle.kills} nameOf={nameOf} total={battle.totalKills} truncated={truncated} />}
+      {battle.kills.length > 0 && <><IpByRole players={battle.players} />
+      <Composition players={battle.players} /></>}
     </div>
   );
 }
@@ -190,13 +200,13 @@ function PlayersTable({ players, nameOf }: { players: BattlePlayer[]; nameOf: (c
   );
 }
 
-function KillsTable({ kills, nameOf, total }: { kills: BattleKill[]; nameOf: (code: string) => string; total: number }) {
+function KillsTable({ kills, nameOf, total, truncated }: { kills: BattleKill[]; nameOf: (code: string) => string; total: number; truncated: boolean }) {
   const [asc, setAsc] = useState(true);
   const rows = asc ? kills : [...kills].reverse();
   const tag = (s: { alliance: string; guild: string }) => [s.alliance && `[${s.alliance}]`, s.guild].filter(Boolean).join(" ") || "—";
   return (
     <section className={`${card} p-3`} aria-label="Kills">
-      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Kills ({total}){kills.length < total && <span className="ml-2 normal-case tracking-normal">mostrando as {kills.length} primeiras</span>}</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Kills ({total}){(truncated || kills.length < total) && <span className="ml-2 normal-case tracking-normal">mostrando as {kills.length} primeiras</span>}</h3>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[680px] text-sm">
           <thead><tr>
