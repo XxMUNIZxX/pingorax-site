@@ -76,15 +76,52 @@ export function buildMessage(event: Row) {
   };
 }
 
-async function discord(path: string, token: string, init: RequestInit) {
+async function discord<T = { id: string; channel_id: string }>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, { ...init, headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" } });
   if (!response.ok) throw new Error(`Discord respondeu ${response.status}: ${(await response.text()).slice(0, 200)}`);
-  return (await response.json()) as { id: string; channel_id: string };
+  return (await response.json()) as T;
 }
 
-export async function sendEventMessage(event: Row, cfg: DiscordConfig) {
-  if (!cfg.botToken || !cfg.channelId) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN / DISCORD_CHANNEL_ID).");
-  return discord(`/channels/${cfg.channelId}/messages`, cfg.botToken, { method: "POST", body: JSON.stringify(buildMessage(event)) });
+export async function sendEventMessage(event: Row, cfg: DiscordConfig, channelId = cfg.channelId) {
+  if (!cfg.botToken || !channelId) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN / canal).");
+  return discord(`/channels/${channelId}/messages`, cfg.botToken, { method: "POST", body: JSON.stringify(buildMessage(event)) });
+}
+
+/** Nome e servidor de um canal (também confirma que o bot enxerga o canal). */
+export async function getChannelInfo(channelId: string, cfg: DiscordConfig) {
+  if (!cfg.botToken) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN).");
+  return discord<{ id: string; name?: string; guild_id?: string }>(`/channels/${channelId}`, cfg.botToken);
+}
+
+/** Registra o comando /pingorax conectar (só quem gerencia o servidor vê/usa). */
+export async function registerCommands(appId: string, cfg: DiscordConfig) {
+  if (!cfg.botToken) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN).");
+  await discord(`/applications/${appId}/commands`, cfg.botToken, { method: "PUT", body: JSON.stringify([{
+    name: "pingorax", type: 1, description: "Conecta este canal ao PingoraX", default_member_permissions: "32", dm_permission: false,
+    options: [{ type: 1, name: "conectar", description: "Gera um código para ligar este canal à sua conta do PingoraX" }],
+  }]) });
+}
+
+// ---- Código de conexão: assinado (HMAC) com o token do bot, sem guardar nada no banco ----
+const b64url = (bytes: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function sign(token: string, message: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(token), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return b64url(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`link|${message}`))).slice(0, 22);
+}
+const sameText = (a: string, b: string) => { let diff = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return diff === 0; };
+
+export async function createLinkCode(token: string, guildId: string, channelId: string, ttlMs = 30 * 60 * 1000) {
+  const body = `${guildId}.${channelId}.${Math.floor((Date.now() + ttlMs) / 1000).toString(36)}`;
+  return `${body}.${await sign(token, body)}`;
+}
+
+export async function readLinkCode(token: string, raw: string): Promise<{ guildId: string; channelId: string } | "expired" | null> {
+  const parts = raw.trim().split(".");
+  if (parts.length !== 4) return null;
+  const [guildId, channelId, exp, sig] = parts as [string, string, string, string];
+  if (!/^[0-9]{5,25}$/.test(guildId) || !/^[0-9]{5,25}$/.test(channelId) || !/^[0-9a-z]{1,10}$/.test(exp)) return null;
+  if (!sameText(sig, await sign(token, `${guildId}.${channelId}.${exp}`))) return null;
+  return parseInt(exp, 36) * 1000 < Date.now() ? "expired" : { guildId, channelId };
 }
 
 export async function editEventMessage(event: Row, channelId: string, messageId: string, cfg: DiscordConfig) {
@@ -105,8 +142,9 @@ export async function verifyDiscordRequest(publicKey: string, signature: string 
 
 type Interaction = {
   type: number;
-  data?: { custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
-  member?: { nick?: string | null; user?: { username?: string; global_name?: string | null } };
+  channel_id?: string; guild_id?: string;
+  member?: { nick?: string | null; permissions?: string; user?: { username?: string; global_name?: string | null } };
+  data?: { name?: string; options?: { name: string }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
   user?: { username?: string; global_name?: string | null };
 };
 
@@ -115,6 +153,18 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 export async function handleInteraction(body: Interaction) {
   if (body.type === 1) return { type: 1 };
+
+  // /pingorax conectar -> devolve o código de conexão (só para quem gerencia o servidor)
+  if (body.type === 2) {
+    if (body.data?.name !== "pingorax" || body.data.options?.[0]?.name !== "conectar") return ephemeral("Comando desconhecido.");
+    if (!body.guild_id || !body.channel_id) return ephemeral("Use este comando dentro de um canal de servidor.");
+    const perms = BigInt(body.member?.permissions ?? "0");
+    if ((perms & (0x8n | 0x20n)) === 0n) return ephemeral("Só quem tem a permissão **Gerenciar Servidor** pode conectar um canal.");
+    const token = discordConfig().botToken;
+    if (!token) return ephemeral("O bot não está configurado no servidor do PingoraX.");
+    const code = await createLinkCode(token, body.guild_id, body.channel_id);
+    return ephemeral(`Código para conectar **este canal** (vale 30 minutos):\n\`\`\`${code}\`\`\`\nPasse para quem cria conteúdos: no PingoraX, em **Criar conteúdo → Discord**, cole o código e clique em Conectar.`);
+  }
 
   const customId = body.data?.custom_id ?? "";
   // Clique no botão da arma -> abre a janelinha pedindo o nick

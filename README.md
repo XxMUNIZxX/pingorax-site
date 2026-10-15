@@ -69,3 +69,14 @@ O criador clica em **Postar no Discord** no conteúdo e o bot publica um card no
 4. Na Cloudflare, no Worker → **Variables and secrets** crie `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN` (como *Secret*) e `DISCORD_CHANNEL_ID`.
 5. Em *General Information* do app, cole em **Interactions Endpoint URL**: `https://SEU-SITE/api/public/discord-interactions` e salve (o Discord testa o endereço na hora).
 6. Em bancos já criados, rode `supabase/migrations/0006_discord_posts.sql` no SQL Editor.
+
+### Discord em vários servidores
+
+Qualquer criador pode postar no servidor dele:
+
+1. No Developer Portal, aba **Bot**, ligue **Public Bot**. Crie a variável `DISCORD_APP_ID` (Application ID) no Worker.
+2. Em `/criar`, como administrador, clique em **Registrar comando /pingorax** (uma vez só).
+3. Quem administra o outro servidor adiciona o bot pelo link de convite que aparece em **Discord do meu servidor** e digita `/pingorax conectar` no canal desejado (precisa da permissão *Gerenciar Servidor*). O bot responde com um código que vale 30 minutos.
+4. O criador cola o código em **Discord do meu servidor** e passa a escolher esse canal em **Postar no Discord**.
+
+O código é assinado com o token do bot, então não pode ser falsificado, e só quem gerencia o servidor consegue gerá-lo. Em bancos já criados, rode `supabase/migrations/0007_discord_channels.sql`. Sem verificação do app, o Discord limita o bot a cerca de 100 servidores.
