@@ -124,3 +124,18 @@ export const refreshDiscordMessage = createServerFn({ method: "POST" })
       return { ok: false };
     }
   });
+
+/** Só administradores: cria um lote de emojis das armas do catálogo (o painel repete até acabar). */
+export const syncWeaponEmojis = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: true; total: number; created: number; failed: number; rateLimited: boolean; remaining: number } | { ok: false; error: string }> => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) return { ok: false, error: "Somente administradores." };
+    try {
+      const { discordConfig, syncCatalogEmojis } = await import("@/lib/discord.server");
+      return { ok: true, ...(await syncCatalogEmojis(discordConfig())) };
+    } catch (error) {
+      console.error("[discord] sync emojis", error);
+      return { ok: false, error: error instanceof Error && error.message.startsWith("Faltam") ? error.message : "O Discord recusou. Confira o DISCORD_APP_ID e o token do bot." };
+    }
+  });

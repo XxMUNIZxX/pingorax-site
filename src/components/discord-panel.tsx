@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { connectDiscordChannel, getDiscordInfo, registerDiscordCommand } from "@/lib/discord.functions";
+import { connectDiscordChannel, getDiscordInfo, registerDiscordCommand, syncWeaponEmojis } from "@/lib/discord.functions";
 
 export type DiscordChannel = { id: string; label: string | null; guild_id: string; channel_id: string };
 
@@ -28,6 +28,8 @@ export function DiscordPanel({ isAdmin }: { isAdmin: boolean }) {
   const info = useQuery({ queryKey: ["discord-info"], queryFn: () => getDiscordInfo(), staleTime: 300_000 });
   const connect = useServerFn(connectDiscordChannel);
   const register = useServerFn(registerDiscordCommand);
+  const syncEmojis = useServerFn(syncWeaponEmojis);
+  const [syncing, setSyncing] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -56,6 +58,23 @@ export function DiscordPanel({ isAdmin }: { isAdmin: boolean }) {
     } catch { toast.error("Não foi possível registrar o comando."); }
   }
 
+  async function createAllEmojis() {
+    setSyncing("Começando...");
+    let made = 0;
+    try {
+      for (let round = 0; round < 60; round++) {
+        const result = await syncEmojis();
+        if (!result.ok) { toast.error(result.error); return; }
+        made += result.created;
+        setSyncing(`${made} criados, faltam ${result.remaining}...`);
+        if (result.remaining === 0) { toast.success(made ? `Pronto: ${made} ícones novos criados.` : "Todos os ícones já existem."); return; }
+        if (result.rateLimited) { toast.warning(`O Discord pediu uma pausa. ${made} criados, faltam ${result.remaining}. Clique de novo daqui a alguns minutos.`); return; }
+        if (result.created === 0) { toast.error(`Não consegui criar ${result.remaining} ícones (falha no download do Albion).`); return; }
+      }
+    } catch { toast.error("Não foi possível criar os ícones."); }
+    finally { setSyncing(null); }
+  }
+
   return (
     <details className="mt-6 rounded-xl border border-border bg-card/60 p-4">
       <summary className="cursor-pointer text-sm font-bold uppercase tracking-widest text-primary">Discord do meu servidor</summary>
@@ -82,6 +101,8 @@ export function DiscordPanel({ isAdmin }: { isAdmin: boolean }) {
           <div className="border-t border-border pt-3">
             <p className="text-xs text-muted-foreground">Administrador: registre o comando uma vez (precisa da variável <code>DISCORD_APP_ID</code>) e deixe o bot público no Discord Developer Portal.</p>
             <Button className="mt-2" size="sm" variant="outline" onClick={registerCommand}>Registrar comando /pingorax</Button>
+            <p className="mt-3 text-xs text-muted-foreground">Ícones das armas no card: cria de uma vez o emoji de todas as armas do catálogo (leva alguns minutos; pode deixar a tela aberta).</p>
+            <Button className="mt-2" size="sm" variant="outline" disabled={!!syncing} onClick={createAllEmojis}>{syncing ?? "Criar ícones de todas as armas"}</Button>
           </div>
         )}
       </div>
