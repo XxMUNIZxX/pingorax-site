@@ -98,6 +98,35 @@ export type Database = {
         }
         Relationships: []
       }
+      discord_posts: {
+        Row: {
+          channel_id: string
+          created_at: string
+          event_id: string
+          message_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          event_id: string
+          message_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          event_id?: string
+          message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discord_posts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_editors: {
         Row: {
           created_at: string

@@ -58,3 +58,14 @@ Ou pelo terminal: `npx wrangler login` e depois `npm run deploy`.
 | Administrador | Tudo, incluindo equipe, catálogo e imagem de compartilhamento |
 
 As regras são aplicadas no próprio banco (políticas RLS em `supabase/schema.sql`), não só na tela.
+
+## Discord (opcional): ping por botões
+
+O criador clica em **Postar no Discord** no conteúdo e o bot publica um card no canal, com um botão por arma. Quem clica informa o nick e já fica pingado; a mensagem atualiza as vagas (também quando alguém pinga ou o criador edita pelo site).
+
+1. <https://discord.com/developers/applications> → **New Application**. Em *General Information* copie a **Public Key**.
+2. Aba **Bot** → **Reset Token** e copie o token. Em *OAuth2 → URL Generator* marque o escopo `bot` e as permissões **View Channels** e **Send Messages**; abra o link gerado e adicione o bot ao seu servidor.
+3. No Discord (modo desenvolvedor ligado) clique com o botão direito no canal → **Copiar ID do canal**.
+4. Na Cloudflare, no Worker → **Variables and secrets** crie `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN` (como *Secret*) e `DISCORD_CHANNEL_ID`.
+5. Em *General Information* do app, cole em **Interactions Endpoint URL**: `https://SEU-SITE/api/public/discord-interactions` e salve (o Discord testa o endereço na hora).
+6. Em bancos já criados, rode `supabase/migrations/0006_discord_posts.sql` no SQL Editor.
