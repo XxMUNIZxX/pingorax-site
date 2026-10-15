@@ -8,15 +8,15 @@ const COLOR = 0x5fd0e8;
 type Row = {
   id: string; title: string; description: string | null; starts_at: string; max_players: number;
   mode: string | null; caller_name: string | null; content_type: string | null;
-  event_weapons: { id: string; name: string; slots: number; position: number }[];
+  event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null }[];
   signups: { id: string; nick: string; weapon_id: string; created_at: string }[];
 };
 
-export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined };
+export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined; appId?: string | undefined };
 // Colar a chave com espaço/quebra de linha no fim é comum: limpa antes de usar.
 const env = serverEnv;
 export const discordConfig = (): DiscordConfig => ({
-  publicKey: env("DISCORD_PUBLIC_KEY")?.toLowerCase(), botToken: env("DISCORD_BOT_TOKEN"), channelId: env("DISCORD_CHANNEL_ID"),
+  publicKey: env("DISCORD_PUBLIC_KEY")?.toLowerCase(), botToken: env("DISCORD_BOT_TOKEN"), channelId: env("DISCORD_CHANNEL_ID"), appId: env("DISCORD_APP_ID"),
 });
 
 export function anonClient() {
@@ -27,7 +27,7 @@ export function anonClient() {
 
 export async function loadEvent(id: string): Promise<Row | null> {
   const { data, error } = await anonClient().from("events")
-    .select("id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position),signups(id,nick,weapon_id,created_at)")
+    .select("id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position,icon_code),signups(id,nick,weapon_id,created_at)")
     .eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as Row | null) ?? null;
@@ -37,8 +37,59 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 // Evita que um nick com @everyone, markdown ou link vire menção/formatação no canal.
 const safeNick = (nick: string) => nick.replace(/[\\*_`~|>@#<\[\]()]/g, "\\$&");
 
+
+// ---- Ícones das armas: emojis do aplicativo (o Discord só mostra imagem em botão/texto assim) ----
+type AppEmoji = { id: string; name: string };
+export type EmojiMap = Map<string, AppEmoji>;
+const emojiNameOf = (code: string) => `w_${code.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`.replace(/_+$/, "").slice(0, 32);
+const itemIconUrl = (code: string, size: number) => `https://render.albiononline.com/v1/item/${encodeURIComponent(code)}.png?quality=1&size=${size}`;
+const emojiTag = (e: AppEmoji) => `<:${e.name}:${e.id}>`;
+let emojiCache: { at: number; byName: Map<string, AppEmoji> } | null = null;
+const EMOJI_TTL = 10 * 60 * 1000;
+const MAX_NEW_EMOJIS_PER_CALL = 10;
+
+async function listAppEmojis(appId: string, token: string) {
+  if (emojiCache && Date.now() - emojiCache.at < EMOJI_TTL) return emojiCache.byName;
+  const data = await discord<{ items?: AppEmoji[] }>(`/applications/${appId}/emojis`, token);
+  const byName = new Map((data.items ?? []).map((e) => [e.name, e] as const));
+  emojiCache = { at: Date.now(), byName };
+  return byName;
+}
+
+async function uploadEmoji(appId: string, token: string, code: string, name: string): Promise<AppEmoji | null> {
+  const image = await fetch(itemIconUrl(code, 64));
+  if (!image.ok) return null;
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return discord<AppEmoji>(`/applications/${appId}/emojis`, token, { method: "POST", body: JSON.stringify({ name, image: `data:image/png;base64,${btoa(binary)}` }) });
+}
+
+/** Emojis (ícone) das armas do conteúdo. `upload` cria os que faltam; nas interações só lê (rápido). Nunca lança erro. */
+export async function weaponEmojis(event: Row, cfg: DiscordConfig, upload: boolean): Promise<EmojiMap> {
+  const out: EmojiMap = new Map();
+  if (!cfg.appId || !cfg.botToken) return out;
+  try {
+    const codes = [...new Set(event.event_weapons.map((w) => w.icon_code).filter((c): c is string => !!c))];
+    if (!codes.length) return out;
+    const byName = await listAppEmojis(cfg.appId, cfg.botToken);
+    let created = 0;
+    for (const code of codes) {
+      const name = emojiNameOf(code);
+      let emoji = byName.get(name);
+      if (!emoji && upload && created < MAX_NEW_EMOJIS_PER_CALL) {
+        created++;
+        try { emoji = (await uploadEmoji(cfg.appId, cfg.botToken, code, name)) ?? undefined; } catch (error) { console.error("[discord] emoji", code, error); }
+        if (emoji) byName.set(name, emoji);
+      }
+      if (emoji) out.set(code, emoji);
+    }
+  } catch (error) { console.error("[discord] emojis", error); }
+  return out;
+}
+
 /** Mensagem do canal: card do conteúdo + um botão por arma + botão que abre o site. */
-export function buildMessage(event: Row) {
+export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
+  const emojiOf = (w: { icon_code?: string | null }) => (w.icon_code ? emojis.get(w.icon_code) : undefined);
   const weapons = [...event.event_weapons].sort((a, b) => a.position - b.position);
   const total = event.signups.length;
   const full = total >= event.max_players;
@@ -51,7 +102,8 @@ export function buildMessage(event: Row) {
     { name: "Jogadores", value: `${total} / ${event.max_players}${full ? " — lotado" : ""}`, inline: true },
     ...weapons.slice(0, 20).map((w) => {
       const nicks = event.signups.filter((s) => s.weapon_id === w.id).map((s) => safeNick(s.nick));
-      return { name: clip(`${w.name} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
+      const e = emojiOf(w);
+      return { name: clip(`${e ? `${emojiTag(e)} ` : ""}${w.name} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
     }),
   ];
   const description = [info, event.description ? clip(event.description, 600) : ""].filter(Boolean).join("\n\n");
@@ -60,7 +112,8 @@ export function buildMessage(event: Row) {
   // Limite do Discord: 25 botões (5 linhas x 5). Sobram 23 armas + "Sair" + "Abrir no site".
   const buttons: object[] = weapons.slice(0, 23).map((w) => {
     const left = w.slots - event.signups.filter((s) => s.weapon_id === w.id).length;
-    return { type: 2, style: left > 0 && !full ? 1 : 2, disabled: left <= 0 || full, custom_id: `p:${event.id}:${w.id}`, label: clip(`${w.name} (${Math.max(0, left)})`, 80) };
+    const e = emojiOf(w);
+    return { type: 2, style: left > 0 && !full ? 1 : 2, disabled: left <= 0 || full, custom_id: `p:${event.id}:${w.id}`, label: clip(`${w.name} (${Math.max(0, left)})`, 80), ...(e ? { emoji: { id: e.id, name: e.name } } : {}) };
   });
   buttons.push({ type: 2, style: 4, custom_id: `l:${event.id}`, label: "Sair" });
   buttons.push({ type: 2, style: 5, label: "Abrir no site", url: link });
@@ -86,7 +139,7 @@ async function discord<T = { id: string; channel_id: string }>(path: string, tok
 
 export async function sendEventMessage(event: Row, cfg: DiscordConfig, channelId = cfg.channelId) {
   if (!cfg.botToken || !channelId) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN / canal).");
-  return discord(`/channels/${channelId}/messages`, cfg.botToken, { method: "POST", body: JSON.stringify(buildMessage(event)) });
+  return discord(`/channels/${channelId}/messages`, cfg.botToken, { method: "POST", body: JSON.stringify(buildMessage(event, await weaponEmojis(event, cfg, true))) });
 }
 
 /** Nome e servidor de um canal (também confirma que o bot enxerga o canal). */
@@ -128,7 +181,7 @@ export async function readLinkCode(token: string, raw: string): Promise<{ guildI
 
 export async function editEventMessage(event: Row, channelId: string, messageId: string, cfg: DiscordConfig) {
   if (!cfg.botToken) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN).");
-  return discord(`/channels/${channelId}/messages/${messageId}`, cfg.botToken, { method: "PATCH", body: JSON.stringify(buildMessage(event)) });
+  return discord(`/channels/${channelId}/messages/${messageId}`, cfg.botToken, { method: "PATCH", body: JSON.stringify(buildMessage(event, await weaponEmojis(event, cfg, true))) });
 }
 
 const hex = (value: string) => Uint8Array.from(value.match(/../g)?.map((b) => parseInt(b, 16)) ?? []);
@@ -181,7 +234,7 @@ export async function handleInteraction(body: Interaction) {
     if (!data) return ephemeral("Você não tem ping neste conteúdo pelo Discord. Se pingou pelo site, peça ao caller para remover.");
     const event = await loadEvent(match[1]!);
     if (!event) return ephemeral("Esse conteúdo não existe mais.");
-    return { type: 7, data: buildMessage(event) };
+    return { type: 7, data: buildMessage(event, await weaponEmojis(event, discordConfig(), false)) };
   }
 
   // Clique no botão da arma -> abre a janelinha pedindo o nick
@@ -211,7 +264,7 @@ export async function handleInteraction(body: Interaction) {
     }
     const event = await loadEvent(eventId);
     if (!event) return ephemeral("Esse conteúdo não existe mais.");
-    return { type: 7, data: buildMessage(event) };
+    return { type: 7, data: buildMessage(event, await weaponEmojis(event, discordConfig(), false)) };
   }
   return ephemeral("Interação não suportada.");
 }
