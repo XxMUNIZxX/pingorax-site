@@ -15,6 +15,7 @@ import { Route as CriarRouteImport } from './routes/criar'
 import { Route as BuildsRouteImport } from './routes/builds'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
+import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -41,6 +42,11 @@ const EventoIdRoute = EventoIdRouteImport.update({
   path: '/evento/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicDiscordInteractionsRoute = ApiPublicDiscordInteractionsRouteImport.update({
+  id: '/api/public/discord-interactions',
+  path: '/api/public/discord-interactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicShareImageRoute = ApiPublicShareImageRouteImport.update({
   id: '/api/public/share-image',
   path: '/api/public/share-image',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/evento/$id': typeof EventoIdRoute
+  '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/evento/$id': typeof EventoIdRoute
+  '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
 }
 export interface FileRoutesById {
@@ -70,14 +78,15 @@ export interface FileRoutesById {
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/evento/$id': typeof EventoIdRoute
+  '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/share-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/share-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
   id:
     | '__root__'
     | '/'
@@ -85,7 +94,7 @@ export interface FileRouteTypes {
     | '/builds'
     | '/criar'
     | '/evento/$id'
-    | '/api/public/share-image'
+    | '/api/public/discord-interactions' | '/api/public/share-image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +103,7 @@ export interface RootRouteChildren {
   BuildsRoute: typeof BuildsRoute
   CriarRoute: typeof CriarRoute
   EventoIdRoute: typeof EventoIdRoute
+  ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
 }
 
@@ -134,6 +144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/discord-interactions': {
+      id: '/api/public/discord-interactions'
+      path: '/api/public/discord-interactions'
+      fullPath: '/api/public/discord-interactions'
+      preLoaderRoute: typeof ApiPublicDiscordInteractionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/share-image': {
       id: '/api/public/share-image'
       path: '/api/public/share-image'
@@ -150,6 +167,7 @@ const rootRouteChildren: RootRouteChildren = {
   BuildsRoute: BuildsRoute,
   CriarRoute: CriarRoute,
   EventoIdRoute: EventoIdRoute,
+  ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
 }
 export const routeTree = rootRouteImport

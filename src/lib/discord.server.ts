@@ -12,8 +12,10 @@ type Row = {
 };
 
 export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined };
+// Colar a chave com espaço/quebra de linha no fim é comum: limpa antes de usar.
+const env = (name: string) => process.env[name]?.trim() || undefined;
 export const discordConfig = (): DiscordConfig => ({
-  publicKey: process.env["DISCORD_PUBLIC_KEY"], botToken: process.env["DISCORD_BOT_TOKEN"], channelId: process.env["DISCORD_CHANNEL_ID"],
+  publicKey: env("DISCORD_PUBLIC_KEY")?.toLowerCase(), botToken: env("DISCORD_BOT_TOKEN"), channelId: env("DISCORD_CHANNEL_ID"),
 });
 
 export function anonClient() {
