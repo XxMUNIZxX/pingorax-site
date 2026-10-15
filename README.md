@@ -89,3 +89,6 @@ O código é assinado com o token do bot, então não pode ser falsificado, e s�
 
 ### Ícones das armas no card do Discord
 O bot cria automaticamente, na primeira vez que posta, um emoji do aplicativo para cada arma (a partir do ícone do Albion). Precisa só de `DISCORD_APP_ID` e `DISCORD_BOT_TOKEN` no Worker. Armas sem ícone do catálogo ficam só com o nome.
+
+## Lutas (kill board)
+A aba **Lutas** (`/lutas`) lê a API pública do Albion (sem chave) pelo servidor do site: lista de batalhas por servidor e página de detalhe com placar, jogadores, equipamentos e kills. Não precisa de SQL nem de variáveis novas.
