@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CriarRouteImport } from './routes/criar'
 import { Route as BuildsRouteImport } from './routes/builds'
+import { Route as LutasRouteImport } from './routes/lutas'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
@@ -30,6 +31,11 @@ const AdminRoute = AdminRouteImport.update({
 const BuildsRoute = BuildsRouteImport.update({
   id: '/builds',
   path: '/builds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LutasRoute = LutasRouteImport.update({
+  id: '/lutas',
+  path: '/lutas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CriarRoute = CriarRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
+  '/lutas': typeof LutasRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
+  '/lutas': typeof LutasRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
+  '/lutas': typeof LutasRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -84,15 +93,16 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/builds'
     | '/criar'
+    | '/lutas'
     | '/evento/$id'
     | '/api/public/discord-interactions' | '/api/public/share-image'
   fileRoutesById: FileRoutesById
@@ -102,6 +112,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   BuildsRoute: typeof BuildsRoute
   CriarRoute: typeof CriarRoute
+  LutasRoute: typeof LutasRoute
   EventoIdRoute: typeof EventoIdRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
@@ -128,6 +139,13 @@ declare module '@tanstack/react-router' {
       path: '/builds'
       fullPath: '/builds'
       preLoaderRoute: typeof BuildsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lutas': {
+      id: '/lutas'
+      path: '/lutas'
+      fullPath: '/lutas'
+      preLoaderRoute: typeof LutasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/criar': {
@@ -166,6 +184,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   BuildsRoute: BuildsRoute,
   CriarRoute: CriarRoute,
+  LutasRoute: LutasRoute,
   EventoIdRoute: EventoIdRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
