@@ -98,6 +98,33 @@ export type Database = {
         }
         Relationships: []
       }
+      discord_channels: {
+        Row: {
+          channel_id: string
+          created_at: string
+          guild_id: string
+          id: string
+          label: string | null
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          guild_id: string
+          id?: string
+          label?: string | null
+          user_id?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          guild_id?: string
+          id?: string
+          label?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       discord_posts: {
         Row: {
           channel_id: string

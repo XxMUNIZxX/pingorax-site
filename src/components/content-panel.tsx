@@ -16,6 +16,8 @@ import { EventEditorsDialog } from "@/components/event-editors-dialog";
 import { useContentOptions, withCurrentValue } from "@/lib/content-options";
 import { useServerFn } from "@tanstack/react-start";
 import { postEventToDiscord, refreshDiscordMessage } from "@/lib/discord.functions";
+import { DiscordPanel, useDiscordChannels } from "@/components/discord-panel";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BuildPicker } from "@/components/build-picker";
 import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
 import { Plus, X } from "lucide-react";
@@ -37,16 +39,17 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   const postToDiscord = useServerFn(postEventToDiscord);
   const refreshDiscord = useServerFn(refreshDiscordMessage);
   const [posting, setPosting] = useState<string | null>(null);
+  const discordChannels = useDiscordChannels();
   const posted = useQuery({ queryKey: ["discord-posts"], queryFn: async () => {
     const { data, error } = await supabase.from("discord_posts").select("event_id");
     if (error) throw error;
     return new Set((data ?? []).map((row) => row.event_id));
   } });
 
-  async function sendToDiscord(id: string) {
+  async function sendToDiscord(id: string, channelRowId?: string) {
     setPosting(id);
     try {
-      const result = await postToDiscord({ data: { eventId: id } });
+      const result = await postToDiscord({ data: { eventId: id, ...(channelRowId ? { channelRowId } : {}) } });
       if (result.ok) { toast.success(result.updated ? "Mensagem do Discord atualizada." : "Postado no Discord!"); void qc.invalidateQueries({ queryKey: ["discord-posts"] }); }
       else toast.error(result.error);
     } catch { toast.error("Não foi possível postar no Discord."); }
@@ -84,6 +87,8 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
 
       <p className="mt-4 text-sm text-muted-foreground">{isAdmin ? "Todos os conteúdos" : "Meus conteúdos e compartilhados comigo"}</p>
 
+      <DiscordPanel isAdmin={isAdmin} />
+
       {draft && <EventEditor draft={draft} setDraft={setDraft} onSaved={() => { setDraft(null); qc.invalidateQueries({ queryKey: ["managed-events"] }); qc.invalidateQueries({ queryKey: ["events"] }); }} />}
 
       <div className="mt-8 space-y-4">
@@ -103,7 +108,15 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" asChild><Link to="/evento/$id" params={{ id: e.id }}>Ver</Link></Button>
                 <Button size="sm" variant="secondary" onClick={() => edit(e)}>Editar</Button>
-                <Button size="sm" variant="outline" disabled={posting === e.id} onClick={() => sendToDiscord(e.id)}>{posting === e.id ? "Enviando..." : posted.data?.has(e.id) ? "Atualizar no Discord" : "Postar no Discord"}</Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button size="sm" variant="outline" disabled={posting === e.id}>{posting === e.id ? "Enviando..." : posted.data?.has(e.id) ? "Atualizar no Discord" : "Postar no Discord"}</Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Escolha o canal</DropdownMenuLabel>
+                    {(discordChannels.data ?? []).map((channel) => <DropdownMenuItem key={channel.id} onSelect={() => void sendToDiscord(e.id, channel.id)}>{channel.label ?? channel.channel_id}</DropdownMenuItem>)}
+                    {isAdmin && <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => void sendToDiscord(e.id)}>Canal padrão do site</DropdownMenuItem></>}
+                    {(discordChannels.data?.length ?? 0) === 0 && !isAdmin && <DropdownMenuItem disabled>Conecte um canal em "Discord do meu servidor"</DropdownMenuItem>}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {(isAdmin || (canCreate && e.created_by === userId)) && <><EventEditorsDialog eventId={e.id} title={e.title} /><Button size="sm" variant="destructive" onClick={() => removeEvent(e.id)}>Apagar</Button></>}
               </div>
             </div>

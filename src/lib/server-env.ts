@@ -6,6 +6,7 @@ const FALLBACKS: Record<string, string | undefined> = {
   SUPABASE_URL: import.meta.env["VITE_SUPABASE_URL"] as string | undefined,
   SUPABASE_PUBLISHABLE_KEY: import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] as string | undefined,
   DISCORD_PUBLIC_KEY: import.meta.env["VITE_DISCORD_PUBLIC_KEY"] as string | undefined,
+  DISCORD_APP_ID: import.meta.env["VITE_DISCORD_APP_ID"] as string | undefined,
   DISCORD_CHANNEL_ID: import.meta.env["VITE_DISCORD_CHANNEL_ID"] as string | undefined,
 };
 

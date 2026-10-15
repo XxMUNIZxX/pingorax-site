@@ -3,37 +3,100 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const input = z.object({ eventId: z.string().uuid() });
+const postInput = z.object({ eventId: z.string().uuid(), channelRowId: z.string().uuid().optional() });
 
-/** Posta o conteúdo no canal do Discord (ou atualiza a mensagem se já foi postado). Só quem pode editar o conteúdo. */
+type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+
+/**
+ * Posta o conteúdo num canal do Discord (ou atualiza a mensagem se já estiver nele). Só quem pode editar o conteúdo.
+ * Com `channelRowId`: canal que o próprio criador conectou. Sem ele: canal padrão do site, só para administradores.
+ */
 export const postEventToDiscord = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((value: unknown) => input.parse(value))
-  .handler(async ({ data, context }): Promise<{ ok: true; updated: boolean } | { ok: false; error: string }> => {
+  .inputValidator((value: unknown) => postInput.parse(value))
+  .handler(async ({ data, context }): Promise<Result<{ updated: boolean }>> => {
     const { data: allowed, error: accessError } = await context.supabase.rpc("can_edit_event", { _event_id: data.eventId });
     if (accessError || !allowed) return { ok: false, error: "Você não pode postar este conteúdo." };
     const { discordConfig, loadEvent, sendEventMessage, editEventMessage } = await import("@/lib/discord.server");
     const cfg = discordConfig();
-    if (!cfg.botToken || !cfg.channelId) return { ok: false, error: "O Discord ainda não foi configurado no servidor (DISCORD_BOT_TOKEN e DISCORD_CHANNEL_ID)." };
+    if (!cfg.botToken) return { ok: false, error: "O Discord ainda não foi configurado no servidor (DISCORD_BOT_TOKEN)." };
+
+    let channelId: string | undefined;
+    if (data.channelRowId) {
+      const { data: row } = await context.supabase.from("discord_channels").select("channel_id").eq("id", data.channelRowId).maybeSingle();
+      if (!row) return { ok: false, error: "Esse canal não está conectado à sua conta." };
+      channelId = row.channel_id;
+    } else {
+      const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+      if (!isAdmin) return { ok: false, error: "Conecte o canal do seu servidor para postar." };
+      channelId = cfg.channelId;
+    }
+    if (!channelId) return { ok: false, error: "O canal padrão do Discord não está configurado (DISCORD_CHANNEL_ID)." };
+
     try {
       const event = await loadEvent(data.eventId);
       if (!event) return { ok: false, error: "Conteúdo não encontrado." };
       const { data: post } = await context.supabase.from("discord_posts").select("channel_id,message_id").eq("event_id", data.eventId).maybeSingle();
       let updated = false;
-      let sent: { id: string; channel_id: string } | null = null;
-      if (post) {
+      if (post && post.channel_id === channelId) {
         try { await editEventMessage(event, post.channel_id, post.message_id, cfg); updated = true; }
         catch { /* mensagem apagada no Discord: posta de novo */ }
       }
       if (!updated) {
-        sent = await sendEventMessage(event, cfg);
+        const sent = await sendEventMessage(event, cfg, channelId);
         const { error } = await context.supabase.from("discord_posts").upsert({ event_id: data.eventId, channel_id: sent.channel_id, message_id: sent.id });
         if (error) return { ok: false, error: "Postou no Discord, mas não conseguiu guardar a mensagem para atualizar depois." };
       }
       return { ok: true, updated };
     } catch (error) {
       console.error("[discord] post", error);
-      return { ok: false, error: "Não foi possível falar com o Discord. Confira o token do bot e se ele tem acesso ao canal." };
+      return { ok: false, error: "Não foi possível postar nesse canal. Confira se o bot está no servidor e tem permissão de ver e enviar mensagens nele." };
     }
+  });
+
+/** Liga à conta do criador o canal do código gerado pelo comando /pingorax conectar. */
+export const connectDiscordChannel = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((value: unknown) => z.object({ code: z.string().trim().min(10).max(120) }).parse(value))
+  .handler(async ({ data, context }): Promise<Result<{ label: string }>> => {
+    const { discordConfig, readLinkCode, getChannelInfo } = await import("@/lib/discord.server");
+    const cfg = discordConfig();
+    if (!cfg.botToken) return { ok: false, error: "O Discord ainda não foi configurado no servidor." };
+    const parsed = await readLinkCode(cfg.botToken, data.code.replace(/\s+/g, ""));
+    if (!parsed) return { ok: false, error: "Código inválido. Copie o código inteiro que o bot mostrou." };
+    if (parsed === "expired") return { ok: false, error: "Esse código expirou. Use /pingorax conectar de novo no canal." };
+    let label = `Canal ${parsed.channelId}`;
+    try {
+      const info = await getChannelInfo(parsed.channelId, cfg);
+      if (info.name) label = `#${info.name}`;
+    } catch { return { ok: false, error: "O bot não enxerga esse canal. Adicione o bot ao servidor e dê a ele permissão de ver o canal." }; }
+    const { error } = await context.supabase.from("discord_channels").insert({ guild_id: parsed.guildId, channel_id: parsed.channelId, label });
+    if (error && error.code !== "23505") return { ok: false, error: "Você precisa ser criador para conectar um canal." };
+    return { ok: true, label };
+  });
+
+/** Dados públicos para a tela: link para adicionar o bot a um servidor. */
+export const getDiscordInfo = createServerFn({ method: "GET" }).handler(async (): Promise<{ invite: string | null; configured: boolean }> => {
+  const { serverEnv } = await import("@/lib/server-env");
+  const appId = serverEnv("DISCORD_APP_ID");
+  return {
+    configured: !!serverEnv("DISCORD_BOT_TOKEN"),
+    invite: appId && /^[0-9]{5,25}$/.test(appId) ? `https://discord.com/oauth2/authorize?client_id=${appId}&scope=bot%20applications.commands&permissions=3072` : null,
+  };
+});
+
+/** Só administradores: cria o comando /pingorax conectar no Discord. */
+export const registerDiscordCommand = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<Result> => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) return { ok: false, error: "Somente administradores." };
+    const { discordConfig, registerCommands } = await import("@/lib/discord.server");
+    const { serverEnv } = await import("@/lib/server-env");
+    const appId = serverEnv("DISCORD_APP_ID");
+    if (!appId) return { ok: false, error: "Falta a variável DISCORD_APP_ID (Application ID do app no Discord)." };
+    try { await registerCommands(appId, discordConfig()); return { ok: true }; }
+    catch (error) { console.error("[discord] register", error); return { ok: false, error: "O Discord recusou o registro. Confira o DISCORD_APP_ID e o token do bot." }; }
   });
 
 const lastRefresh = new Map<string, number>();
