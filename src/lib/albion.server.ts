@@ -12,7 +12,7 @@ const memory = new Map<string, { at: number; value: unknown }>();
  * Busca na API do jogo com dois níveis de cache: memória do servidor (rápido) e cache da Cloudflare
  * (compartilhado entre todos os visitantes). Assim a API lenta do Albion é chamada poucas vezes.
  */
-async function api<T>(server: Server, path: string, ttlMs: number): Promise<T> {
+export async function api<T>(server: Server, path: string, ttlMs: number): Promise<T> {
   const url = `${HOSTS[server]}/api/gameinfo${path}`;
   const hit = memory.get(url);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
@@ -35,11 +35,11 @@ async function api<T>(server: Server, path: string, ttlMs: number): Promise<T> {
   return value;
 }
 
-type Dict = Record<string, unknown>;
-const obj = (value: unknown): Dict => (value && typeof value === "object" ? (value as Dict) : {});
-const str = (value: unknown) => (typeof value === "string" ? value : "");
-const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
-const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+export type Dict = Record<string, unknown>;
+export const obj = (value: unknown): Dict => (value && typeof value === "object" ? (value as Dict) : {});
+export const str = (value: unknown) => (typeof value === "string" ? value : "");
+export const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+export const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
 // ---- Lista de batalhas ----
 export async function listBattles(server: Server, page: number, minPlayers: number, query: string): Promise<BattleListItem[]> {
@@ -67,7 +67,7 @@ export async function listBattles(server: Server, page: number, minPlayers: numb
 const SLOTS = ["MainHand", "OffHand", "Head", "Armor", "Shoes", "Bag", "Cape", "Mount", "Potion", "Food"] as const;
 const KEYS = { MainHand: "weapon", OffHand: "offhand", Head: "helmet", Armor: "armor", Shoes: "boots", Bag: "bag", Cape: "cape", Mount: "mount", Potion: "potion", Food: "food" } as const;
 
-function gearOf(equipment: unknown): Gear {
+export function gearOf(equipment: unknown): Gear {
   const e = obj(equipment);
   const gear: Gear = {};
   for (const slot of SLOTS) {
@@ -77,10 +77,10 @@ function gearOf(equipment: unknown): Gear {
   return gear;
 }
 
-function sideOf(raw: unknown): KillSide {
+export function sideOf(raw: unknown): KillSide {
   const p = obj(raw);
   return {
-    name: str(p["Name"]), guild: str(p["GuildName"]), alliance: str(p["AllianceName"]), allianceTag: str(p["AllianceTag"]),
+    id: str(p["Id"]), name: str(p["Name"]), guild: str(p["GuildName"]), alliance: str(p["AllianceName"]), allianceTag: str(p["AllianceTag"]),
     ip: Math.round(num(p["AverageItemPower"])), gear: gearOf(p["Equipment"]),
   };
 }

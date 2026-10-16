@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CriarRouteImport } from './routes/criar'
 import { Route as BuildsRouteImport } from './routes/builds'
 import { Route as LutasRouteImport } from './routes/lutas'
+import { Route as KillsRouteImport } from './routes/kills'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
@@ -31,6 +32,11 @@ const AdminRoute = AdminRouteImport.update({
 const BuildsRoute = BuildsRouteImport.update({
   id: '/builds',
   path: '/builds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KillsRoute = KillsRouteImport.update({
+  id: '/kills',
+  path: '/kills',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LutasRoute = LutasRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/lutas': typeof LutasRoute
+  '/kills': typeof KillsRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/lutas': typeof LutasRoute
+  '/kills': typeof KillsRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/builds': typeof BuildsRoute
   '/criar': typeof CriarRoute
   '/lutas': typeof LutasRoute
+  '/kills': typeof KillsRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -93,9 +102,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image'
   id:
     | '__root__'
     | '/'
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
     | '/builds'
     | '/criar'
     | '/lutas'
+    | '/kills'
     | '/evento/$id'
     | '/api/public/discord-interactions' | '/api/public/share-image'
   fileRoutesById: FileRoutesById
@@ -113,6 +123,7 @@ export interface RootRouteChildren {
   BuildsRoute: typeof BuildsRoute
   CriarRoute: typeof CriarRoute
   LutasRoute: typeof LutasRoute
+  KillsRoute: typeof KillsRoute
   EventoIdRoute: typeof EventoIdRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
@@ -139,6 +150,13 @@ declare module '@tanstack/react-router' {
       path: '/builds'
       fullPath: '/builds'
       preLoaderRoute: typeof BuildsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kills': {
+      id: '/kills'
+      path: '/kills'
+      fullPath: '/kills'
+      preLoaderRoute: typeof KillsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lutas': {
@@ -185,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   BuildsRoute: BuildsRoute,
   CriarRoute: CriarRoute,
   LutasRoute: LutasRoute,
+  KillsRoute: KillsRoute,
   EventoIdRoute: EventoIdRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,

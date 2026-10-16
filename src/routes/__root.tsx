@@ -144,6 +144,7 @@ function PanelNavigation() {
     <Button variant="ghost" size="sm" asChild><Link to="/" activeProps={{ className: "bg-secondary text-foreground" }} activeOptions={{ exact: true }}>Conteúdos</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/builds" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Builds</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/lutas" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Lutas</Link></Button>
+    <Button variant="ghost" size="sm" asChild><Link to="/kills" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Kills</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Criar conteúdo</Link></Button>
     {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Administração</Link></Button>}
   </nav>;

@@ -1,6 +1,7 @@
 import { publicShareClient } from "@/lib/share-image.server";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { serverEnv } from "@/lib/server-env";
+import type { Server } from "@/lib/albion-types";
 
 const API = "https://discord.com/api/v10";
 const COLOR = 0x5fd0e8;
@@ -137,6 +138,12 @@ async function discord<T = { id: string; channel_id: string }>(path: string, tok
   return (await response.json()) as T;
 }
 
+/** Envia uma mensagem pronta (embeds) a um canal. */
+export async function sendRawMessage(channelId: string, cfg: DiscordConfig, payload: object) {
+  if (!cfg.botToken || !channelId) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN / canal).");
+  return discord(`/channels/${channelId}/messages`, cfg.botToken, { method: "POST", body: JSON.stringify(payload) });
+}
+
 export async function sendEventMessage(event: Row, cfg: DiscordConfig, channelId = cfg.channelId) {
   if (!cfg.botToken || !channelId) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN / canal).");
   return discord(`/channels/${channelId}/messages`, cfg.botToken, { method: "POST", body: JSON.stringify(buildMessage(event, await weaponEmojis(event, cfg, true))) });
@@ -148,13 +155,18 @@ export async function getChannelInfo(channelId: string, cfg: DiscordConfig) {
   return discord<{ id: string; name?: string; guild_id?: string }>(`/channels/${channelId}`, cfg.botToken);
 }
 
-/** Registra o comando /pingorax conectar (só quem gerencia o servidor vê/usa). */
+/** Registra os comandos: /pingorax conectar (só quem gerencia o servidor) e /luta, /kill (qualquer pessoa). */
 export async function registerCommands(appId: string, cfg: DiscordConfig) {
   if (!cfg.botToken) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN).");
-  await discord(`/applications/${appId}/commands`, cfg.botToken, { method: "PUT", body: JSON.stringify([{
-    name: "pingorax", type: 1, description: "Conecta este canal ao PingoraX", default_member_permissions: "32", dm_permission: false,
-    options: [{ type: 1, name: "conectar", description: "Gera um código para ligar este canal à sua conta do PingoraX" }],
-  }]) });
+  const idOption = (what: string) => ({ type: 3, name: "id", description: `Número ou link ${what}`, required: true, max_length: 200 });
+  const serverOption = { type: 3, name: "servidor", description: "Servidor do Albion (padrão: Américas)", required: false,
+    choices: [{ name: "Américas", value: "americas" }, { name: "Europa", value: "europe" }, { name: "Ásia", value: "asia" }] };
+  await discord(`/applications/${appId}/commands`, cfg.botToken, { method: "PUT", body: JSON.stringify([
+    { name: "pingorax", type: 1, description: "Conecta este canal ao PingoraX", default_member_permissions: "32", dm_permission: false,
+      options: [{ type: 1, name: "conectar", description: "Gera um código para ligar este canal à sua conta do PingoraX" }] },
+    { name: "luta", type: 1, description: "Mostra a análise de uma batalha do Albion", options: [idOption("da batalha"), serverOption] },
+    { name: "kill", type: 1, description: "Mostra uma kill do Albion", options: [idOption("da kill"), serverOption] },
+  ]) });
 }
 
 // ---- Código de conexão: assinado (HMAC) com o token do bot, sem guardar nada no banco ----
@@ -199,15 +211,61 @@ type Interaction = {
   type: number;
   channel_id?: string; guild_id?: string;
   member?: { nick?: string | null; permissions?: string; user?: { id?: string; username?: string; global_name?: string | null } };
-  data?: { name?: string; options?: { name: string }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
+  token?: string; application_id?: string;
+  data?: { name?: string; options?: { name: string; value?: string | number }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
   user?: { id?: string; username?: string; global_name?: string | null };
 };
 
 const ephemeral = (content: string) => ({ type: 4, data: { content, flags: 64 } });
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
+/** Deixa o Worker terminar um trabalho depois de responder ao Discord (se o ambiente permitir). */
+async function runLater(task: Promise<unknown>): Promise<boolean> {
+  try {
+    const specifier = "cloudflare:workers";
+    const mod = (await import(/* @vite-ignore */ specifier)) as { waitUntil?: (promise: Promise<unknown>) => void };
+    if (typeof mod.waitUntil !== "function") return false;
+    mod.waitUntil(task);
+    return true;
+  } catch { return false; }
+}
+
+/** /luta e /kill: respondem com um cartão de análise no canal onde o comando foi usado. */
+async function analysisCommand(body: Interaction, kind: "luta" | "kill") {
+  const { battleMessage, killMessage, parseId } = await import("@/lib/albion-discord.server");
+  const options = body.data?.options ?? [];
+  const id = parseId(String(options.find((o) => o.name === "id")?.value ?? ""));
+  const rawServer = String(options.find((o) => o.name === "servidor")?.value ?? "americas");
+  const server: Server = rawServer === "europe" || rawServer === "asia" ? rawServer : "americas";
+  if (!id) return ephemeral("Não achei o número. Use o número ou o link da " + (kind === "luta" ? "batalha." : "kill."));
+  const build = () => (kind === "luta" ? battleMessage(server, id) : killMessage(server, id));
+
+  // O Discord só espera 3 s. Com o Worker podendo continuar em segundo plano, respondemos "pensando" e editamos depois.
+  const appId = body.application_id ?? serverEnv("DISCORD_APP_ID");
+  if (body.token && appId) {
+    const deliver = async () => {
+      let payload: object;
+      try { payload = await build(); }
+      catch (error) { console.error("[discord] analise", error); payload = { content: kind === "luta" ? "Não consegui carregar essa batalha agora. Confira o número e o servidor." : "Não consegui carregar essa kill agora. Confira o número e o servidor." }; }
+      await fetch(`${API}/webhooks/${appId}/${body.token}/messages/@original`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    };
+    if (await runLater(deliver())) return { type: 5 };
+  }
+  // Sem segundo plano: tenta dentro do prazo.
+  try {
+    const message = await Promise.race([build(), new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500))]);
+    if (!message) return ephemeral("A API do Albion demorou para responder. Tente o comando de novo em alguns segundos.");
+    return { type: 4, data: message };
+  } catch (error) {
+    console.error("[discord] analise", error);
+    return ephemeral("Não consegui carregar isso agora. Confira o número e o servidor.");
+  }
+}
+
 export async function handleInteraction(body: Interaction) {
   if (body.type === 1) return { type: 1 };
+
+  if (body.type === 2 && (body.data?.name === "luta" || body.data?.name === "kill")) return analysisCommand(body, body.data.name);
 
   // /pingorax conectar -> devolve o código de conexão (só para quem gerencia o servidor)
   if (body.type === 2) {

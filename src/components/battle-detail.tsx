@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ItemSlot } from "@/components/item-slot";
 import { BuildGear, useItemNames } from "@/components/build-view";
+import { SendToDiscord } from "@/components/send-to-discord";
 import { SectionBoundary } from "@/components/section-boundary";
 import { BattleTimeline } from "@/components/battle-timeline";
 import { Composition, IpByRole } from "@/components/battle-extras";
@@ -29,7 +30,10 @@ export function BattleDetailView({ server, id }: { server: Server; id: number })
   const battle = useMemo(() => (base ? mergeKills(base, extra) : null), [base, extra]);
   return (
     <div>
-      <Button variant="ghost" size="sm" asChild><Link to="/lutas" search={{ servidor: server }}><ArrowLeft /> Voltar às batalhas</Link></Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" asChild><Link to="/lutas" search={{ servidor: server }}><ArrowLeft /> Voltar às batalhas</Link></Button>
+        <SendToDiscord kind="battle" server={server} id={id} />
+      </div>
       {summary.isLoading && <p className="mt-6 text-muted-foreground">Carregando batalha #{id}...</p>}
       {summary.data && !summary.data.ok && <p className="mt-6 text-destructive">{summary.data.error}</p>}
       {battle && <Battle battle={battle} loadingKills={killsQuery.isLoading} killsFailed={killsQuery.data?.ok === false} truncated={extra?.truncated ?? false} />}
