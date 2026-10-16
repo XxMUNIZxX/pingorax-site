@@ -18,9 +18,10 @@ export async function recentKills(server: Server): Promise<KillSummary[]> {
 
 /** Busca jogadores pelo nome. */
 export async function searchPlayers(server: Server, query: string): Promise<PlayerHit[]> {
-  const q = query.trim();
+  const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
-  const result = obj(await api<unknown>(server, `/search?q=${encodeURIComponent(q)}`, 60_000));
+  // Cache longo (nomes mudam pouco) e limite de tempo: melhor avisar logo do que deixar a tela esperando.
+  const result = obj(await api<unknown>(server, `/search?q=${encodeURIComponent(q)}`, 15 * 60_000, 8_000));
   return list(result["players"]).map(obj).slice(0, 12).map((p) => ({
     id: str(p["Id"]), name: str(p["Name"]), guild: str(p["GuildName"]), alliance: str(p["AllianceName"]), killFame: num(p["KillFame"]),
   })).filter((p) => p.id && p.name);
