@@ -12,7 +12,7 @@ const memory = new Map<string, { at: number; value: unknown }>();
  * Busca na API do jogo com dois níveis de cache: memória do servidor (rápido) e cache da Cloudflare
  * (compartilhado entre todos os visitantes). Assim a API lenta do Albion é chamada poucas vezes.
  */
-export async function api<T>(server: Server, path: string, ttlMs: number): Promise<T> {
+export async function api<T>(server: Server, path: string, ttlMs: number, timeoutMs = 0): Promise<T> {
   const url = `${HOSTS[server]}/api/gameinfo${path}`;
   const hit = memory.get(url);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
@@ -22,7 +22,7 @@ export async function api<T>(server: Server, path: string, ttlMs: number): Promi
     try { const cached = await edge.match(url); if (cached) value = (await cached.json()) as T; } catch { /* sem cache */ }
   }
   if (value === undefined) {
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    const response = await fetch(url, { headers: { Accept: "application/json" }, ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}) });
     if (!response.ok) throw new Error(`Albion respondeu ${response.status}`);
     const text = await response.text();
     value = JSON.parse(text) as T;

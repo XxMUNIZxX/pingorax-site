@@ -12,19 +12,26 @@ import { SERVERS, shortNumber, type Server } from "@/lib/albion-types";
 export function PlayerSearch({ server }: { server: Server }) {
   const [text, setText] = useState("");
   const [debounced, setDebounced] = useState("");
-  useEffect(() => { const t = setTimeout(() => setDebounced(text.trim()), 350); return () => clearTimeout(t); }, [text]);
+  // Espera um instante depois de digitar; Enter busca na hora.
+  useEffect(() => { const t = setTimeout(() => setDebounced(text.trim().toLowerCase()), 250); return () => clearTimeout(t); }, [text]);
   const enabled = debounced.length >= 2;
-  const result = useQuery({ queryKey: ["player-search", server, debounced], enabled, queryFn: () => fetchPlayerSearch({ data: { server, query: debounced } }), staleTime: 60_000 });
+  const result = useQuery({
+    queryKey: ["player-search", server, debounced], enabled, queryFn: () => fetchPlayerSearch({ data: { server, query: debounced } }),
+    staleTime: 15 * 60_000, gcTime: 30 * 60_000, retry: 1, placeholderData: keepPreviousData,
+  });
+  // Enquanto o novo termo carrega, mantém a lista anterior na tela em vez de piscar "Buscando...".
+  const waiting = enabled && result.isFetching;
   const players = result.data?.ok ? result.data.players : [];
   return (
     <div className="relative min-w-0 flex-1 basis-64">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <Input className="pl-9" placeholder="Buscar jogador pelo nome" aria-label="Buscar jogador" value={text} onChange={(e) => setText(e.target.value)} />
+      <Input className="pl-9" placeholder="Buscar jogador pelo nome" aria-label="Buscar jogador" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") setDebounced(text.trim().toLowerCase()); }} />
       {enabled && (
         <div className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-xl" role="listbox" aria-label="Resultados">
-          {result.isFetching && <p className="p-3 text-sm text-muted-foreground">Buscando...</p>}
-          {!result.isFetching && result.data?.ok && players.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum jogador encontrado com esse nome.</p>}
-          {result.data && !result.data.ok && <p className="p-3 text-sm text-destructive">{result.data.error}</p>}
+          {waiting && <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Buscando no Albion... pode levar alguns segundos.</p>}
+          {!waiting && result.data?.ok && players.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum jogador encontrado com esse nome.</p>}
+          {!waiting && result.data && !result.data.ok && <p className="p-3 text-sm text-destructive">{result.data.error}</p>}
+          {!waiting && result.isError && <p className="p-3 text-sm text-destructive">A busca não respondeu. Tente de novo.</p>}
           {players.map((p) => (
             <Link key={p.id} to="/kills" search={{ servidor: server, jogador: p.id }} role="option" onClick={() => setText("")}
               className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-secondary">
