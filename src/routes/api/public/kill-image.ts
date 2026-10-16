@@ -13,9 +13,11 @@ export const Route = createFileRoute("/api/public/kill-image")({
     try {
       const { killDetail } = await import("@/lib/albion-kills.server");
       const { renderKillImage } = await import("@/lib/kill-image.server");
-      const png = await renderKillImage(await killDetail(server as "americas" | "europe" | "asia", id));
-      const response = new Response(png as unknown as BodyInit, { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" } });
-      try { await cache?.put(key, response.clone()); } catch { /* sem cache */ }
+      const { png, missing } = await renderKillImage(await killDetail(server as "americas" | "europe" | "asia", id));
+      // Imagem incompleta (algum ícone não veio) fica pouco tempo no cache, para a próxima vez sair inteira.
+      const maxAge = missing ? 30 : 86400;
+      const response = new Response(png as unknown as BodyInit, { headers: { "Content-Type": "image/png", "Cache-Control": `public, max-age=${maxAge}`, "X-Content-Type-Options": "nosniff" } });
+      if (!missing) { try { await cache?.put(key, response.clone()); } catch { /* sem cache */ } }
       return response;
     } catch (error) {
       console.error("[kill-image]", error);
