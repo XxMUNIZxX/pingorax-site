@@ -17,7 +17,7 @@ export function PlayerSearch({ server }: { server: Server }) {
   const enabled = debounced.length >= 2;
   const result = useQuery({
     queryKey: ["player-search", server, debounced], enabled, queryFn: () => fetchPlayerSearch({ data: { server, query: debounced } }),
-    staleTime: 15 * 60_000, gcTime: 30 * 60_000, retry: 1, placeholderData: keepPreviousData,
+    staleTime: 15 * 60_000, gcTime: 30 * 60_000, retry: 2, placeholderData: keepPreviousData,
   });
   // Enquanto o novo termo carrega, mantém a lista anterior na tela em vez de piscar "Buscando...".
   const waiting = enabled && result.isFetching;
@@ -30,7 +30,7 @@ export function PlayerSearch({ server }: { server: Server }) {
         <div className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-xl" role="listbox" aria-label="Resultados">
           {waiting && <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Buscando no Albion... pode levar alguns segundos.</p>}
           {!waiting && result.data?.ok && players.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum jogador encontrado com esse nome.</p>}
-          {!waiting && result.data && !result.data.ok && <p className="p-3 text-sm text-destructive">{result.data.error}</p>}
+          {!waiting && result.data && !result.data.ok && <p className="p-3 text-sm text-destructive">{result.data.error} <button type="button" className="underline" onClick={() => void result.refetch()}>Tentar de novo</button></p>}
           {!waiting && result.isError && <p className="p-3 text-sm text-destructive">A busca não respondeu. Tente de novo.</p>}
           {players.map((p) => (
             <Link key={p.id} to="/kills" search={{ servidor: server, jogador: p.id }} role="option" onClick={() => setText("")}
