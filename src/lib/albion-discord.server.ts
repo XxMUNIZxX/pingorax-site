@@ -25,27 +25,13 @@ export type EmbedMessage = { embeds: object[]; allowed_mentions: { parse: string
 export async function battleMessage(server: Server, id: number): Promise<EmbedMessage> {
   const b = await getBattle(server, id);
   const unix = Math.floor(gameDate(b.startTime).getTime() / 1000);
-  const line = (g: { name: string; players: number; kills: number; deaths: number; fame: number }) =>
-    `**${clip(safe(g.name), 28)}** · ${g.players} jog. · ${g.kills} K / ${g.deaths} M · ${shortNumber(g.fame)}`;
-  const topKills = [...b.players].sort((x, y) => y.kills - x.kills || y.fame - x.fame)[0];
-  const topFame = [...b.players].sort((x, y) => y.fame - x.fame)[0];
-  const topDeaths = [...b.players].sort((x, y) => y.deaths - x.deaths)[0];
-  const highlights = [
-    topKills && topKills.kills > 0 ? `🗡️ Mais kills: **${safe(topKills.name)}** (${tagOf(topKills)}) — ${topKills.kills}` : "",
-    topFame && topFame.fame > 0 ? `💰 Mais fama: **${safe(topFame.name)}** (${tagOf(topFame)}) — ${shortNumber(topFame.fame)}` : "",
-    topDeaths && topDeaths.deaths > 0 ? `💀 Mais mortes: **${safe(topDeaths.name)}** (${tagOf(topDeaths)}) — ${topDeaths.deaths}` : "",
-  ].filter(Boolean).join("\n");
   const title = (b.alliances.length ? b.alliances : b.guilds).slice(0, 4).map((g) => g.name).join(", ") || `Batalha #${b.id}`;
-  const fields = [
-    ...(b.alliances.length ? [{ name: `Alianças (${b.alliances.length})`, value: clip(b.alliances.slice(0, 6).map(line).join("\n"), 1024), inline: false }] : []),
-    ...(b.guilds.length ? [{ name: `Guildas (${b.guilds.length})`, value: clip(b.guilds.slice(0, 8).map(line).join("\n"), 1024), inline: false }] : []),
-    ...(highlights ? [{ name: "Destaques", value: clip(highlights, 1024), inline: false }] : []),
-  ];
   return {
     embeds: [{
       title: clip(`Batalha #${b.id} — ${title}`, 256), url: `${SHARE_ORIGIN}/lutas?servidor=${server}&batalha=${b.id}`, color: COLOR,
       description: `**${b.players.length}** em campo · **${b.totalKills}** kills · **${shortNumber(b.totalFame)}** de fama\n<t:${unix}:F> (<t:${unix}:R>)`,
-      fields, footer: { text: `PingoraX · ${SERVER_NAME[server]} · veja a análise completa no site` },
+      image: { url: `${SHARE_ORIGIN}/api/public/battle-image?s=${server}&id=${b.id}&v=${Math.floor(Date.now() / 60000)}` },
+      footer: { text: `${SERVER_NAME[server]} · análise completa no site` },
     }],
     allowed_mentions: { parse: [] },
   };

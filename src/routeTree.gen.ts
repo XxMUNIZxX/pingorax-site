@@ -18,6 +18,7 @@ import { Route as KillsRouteImport } from './routes/kills'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
 import { Route as ApiPublicKillImageRouteImport } from './routes/api/public/kill-image'
+import { Route as ApiPublicBattleImageRouteImport } from './routes/api/public/battle-image'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
 
 const IndexRoute = IndexRouteImport.update({
@@ -60,6 +61,11 @@ const ApiPublicDiscordInteractionsRoute = ApiPublicDiscordInteractionsRouteImpor
   path: '/api/public/discord-interactions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicBattleImageRoute = ApiPublicBattleImageRouteImport.update({
+  id: '/api/public/battle-image',
+  path: '/api/public/battle-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicKillImageRoute = ApiPublicKillImageRouteImport.update({
   id: '/api/public/kill-image',
   path: '/api/public/kill-image',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
   '/api/public/kill-image': typeof ApiPublicKillImageRoute
+  '/api/public/battle-image': typeof ApiPublicBattleImageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
   '/api/public/kill-image': typeof ApiPublicKillImageRoute
+  '/api/public/battle-image': typeof ApiPublicBattleImageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,13 +115,14 @@ export interface FileRoutesById {
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
   '/api/public/kill-image': typeof ApiPublicKillImageRoute
+  '/api/public/battle-image': typeof ApiPublicBattleImageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
   id:
     | '__root__'
     | '/'
@@ -123,7 +132,7 @@ export interface FileRouteTypes {
     | '/lutas'
     | '/kills'
     | '/evento/$id'
-    | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image'
+    | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -137,6 +146,7 @@ export interface RootRouteChildren {
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
   ApiPublicKillImageRoute: typeof ApiPublicKillImageRoute
+  ApiPublicBattleImageRoute: typeof ApiPublicBattleImageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -197,6 +207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDiscordInteractionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/battle-image': {
+      id: '/api/public/battle-image'
+      path: '/api/public/battle-image'
+      fullPath: '/api/public/battle-image'
+      preLoaderRoute: typeof ApiPublicBattleImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/kill-image': {
       id: '/api/public/kill-image'
       path: '/api/public/kill-image'
@@ -225,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
   ApiPublicKillImageRoute: ApiPublicKillImageRoute,
+  ApiPublicBattleImageRoute: ApiPublicBattleImageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

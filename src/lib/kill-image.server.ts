@@ -3,7 +3,7 @@ import { gameDate, type Gear, type KillDetail } from "@/lib/albion-types";
 // Imagem da kill (equipamento dos dois lados, fama e inventário), desenhada aqui mesmo sem nenhuma biblioteca:
 // os ícones vêm do serviço de imagens do jogo, são colados num quadro e o PNG é montado com as APIs do Worker.
 
-type Img = { w: number; h: number; px: Uint8ClampedArray };
+export type Img = { w: number; h: number; px: Uint8ClampedArray };
 
 const concat = (parts: Uint8Array[]) => {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -94,14 +94,14 @@ export async function encodePng(img: Img): Promise<Uint8Array> {
 }
 
 // ---- Desenho ----
-type Rgb = number[];
+export type Rgb = number[];
 // Mesmas cores do site (tema escuro).
-const BG: Rgb = [10, 13, 21], CARD: Rgb = [22, 26, 37], BORDER: Rgb = [62, 66, 80], PRIMARY: Rgb = [109, 182, 255], FG: Rgb = [240, 242, 247], MUTED: Rgb = [182, 186, 199], AMBER: Rgb = [251, 191, 36];
+export const BG: Rgb = [10, 13, 21], CARD: Rgb = [22, 26, 37], BORDER: Rgb = [62, 66, 80], PRIMARY: Rgb = [109, 182, 255], FG: Rgb = [240, 242, 247], MUTED: Rgb = [182, 186, 199], AMBER: Rgb = [251, 191, 36];
 
-const fill = (img: Img, x: number, y: number, w: number, h: number, [r, g, b, a = 255]: Rgb) => {
+export const fill = (img: Img, x: number, y: number, w: number, h: number, [r, g, b, a = 255]: Rgb) => {
   for (let j = Math.max(0, y); j < Math.min(img.h, y + h); j++) for (let i = Math.max(0, x); i < Math.min(img.w, x + w); i++) img.px.set([r!, g!, b!, a], (j * img.w + i) * 4);
 };
-const box = (img: Img, x: number, y: number, w: number, h: number, bg: Rgb, border: Rgb) => { fill(img, x, y, w, h, border); fill(img, x + 2, y + 2, w - 4, h - 4, bg); };
+export const box = (img: Img, x: number, y: number, w: number, h: number, bg: Rgb, border: Rgb) => { fill(img, x, y, w, h, border); fill(img, x + 2, y + 2, w - 4, h - 4, bg); };
 
 /** Cola o ícone (escalado se preciso) sobre o quadro respeitando a transparência. */
 function blit(img: Img, icon: Img, x: number, y: number, size: number) {
@@ -138,15 +138,15 @@ const FONT: Record<string, string> = {
   " ": "00000 00000 00000 00000 00000 00000 00000",
 };
 const clean = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9.,\-\[\]/:'_() ]/g, "?");
-const textWidth = (value: string, scale: number) => (value.length ? value.length * 6 * scale - scale : 0);
+export const textWidth = (value: string, scale: number) => (value.length ? value.length * 6 * scale - scale : 0);
 /** Corta o texto com "..." para caber na largura. */
-function fit(value: string, max: number, scale: number) {
+export function fit(value: string, max: number, scale: number) {
   let out = clean(value);
   if (textWidth(out, scale) <= max) return out;
   while (out.length > 1 && textWidth(`${out}...`, scale) > max) out = out.slice(0, -1);
   return `${out}...`;
 }
-function text(img: Img, value: string, x: number, y: number, scale: number, color: Rgb, align: "left" | "center" | "right" = "left") {
+export function text(img: Img, value: string, x: number, y: number, scale: number, color: Rgb, align: "left" | "center" | "right" = "left") {
   const raw = clean(value);
   let at = align === "left" ? x : align === "center" ? x - Math.round(textWidth(raw, scale) / 2) : x - textWidth(raw, scale);
   for (const ch of raw) {
