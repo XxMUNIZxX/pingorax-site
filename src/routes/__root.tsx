@@ -120,8 +120,8 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <PanelSessionProvider>
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <Link to="/" className="flex items-center gap-2 font-display text-2xl font-extrabold text-gold" aria-label="PingoraX — página inicial">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+          <Link to="/" className="flex shrink-0 items-center gap-2 font-display text-2xl font-extrabold text-gold" aria-label="PingoraX — página inicial">
             <img src="/logo-96.png" alt="" width={36} height={36} className="h-9 w-9 object-contain" />
             PingoraX
           </Link>
@@ -132,6 +132,7 @@ function RootComponent() {
       <div className="mx-2 my-4 max-w-[76rem] rounded-2xl border border-border/70 bg-background/70 shadow-2xl shadow-black/30 backdrop-blur-sm sm:mx-4 xl:mx-auto">
       <Outlet />
       </div>
+      <SiteFooter />
       <Toaster richColors theme="dark" />
       </PanelSessionProvider>
     </QueryClientProvider>
@@ -140,12 +141,29 @@ function RootComponent() {
 
 function PanelNavigation() {
   const { isAdmin } = usePanelAccess();
-  return <nav aria-label="Painéis" className="flex flex-wrap justify-end gap-1">
-    <Button variant="ghost" size="sm" asChild><Link to="/" activeProps={{ className: "bg-secondary text-foreground" }} activeOptions={{ exact: true }}>Conteúdos</Link></Button>
-    <Button variant="ghost" size="sm" asChild><Link to="/builds" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Builds</Link></Button>
-    <Button variant="ghost" size="sm" asChild><Link to="/lutas" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Lutas</Link></Button>
-    <Button variant="ghost" size="sm" asChild><Link to="/kills" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Kills</Link></Button>
-    <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Criar conteúdo</Link></Button>
-    {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={{ className: "bg-secondary text-foreground", "aria-current": "page" }}>Administração</Link></Button>}
+  const active = { className: "bg-secondary text-foreground", "aria-current": "page" as const };
+  return <nav aria-label="Painéis" className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 sm:flex-wrap sm:justify-end sm:overflow-visible">
+    <Button variant="ghost" size="sm" asChild><Link to="/conteudos" activeProps={active}>Conteúdos</Link></Button>
+    <Button variant="ghost" size="sm" asChild><Link to="/builds" activeProps={active}>Builds</Link></Button>
+    <Button variant="ghost" size="sm" asChild><Link to="/lutas" activeProps={active}>Lutas</Link></Button>
+    <Button variant="ghost" size="sm" asChild><Link to="/kills" activeProps={active}>Kills</Link></Button>
+    <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={active}>Criar conteúdo</Link></Button>
+    {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={active}>Administração</Link></Button>}
   </nav>;
+}
+
+function SiteFooter() {
+  return (
+    <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-border/60 pt-5">
+        <p>PingoraX é um site de fãs de Albion Online, sem ligação com a Sandbox Interactive. Dados de lutas e kills vêm da API pública do jogo.</p>
+        <nav aria-label="Rodapé" className="flex gap-4">
+          <Link to="/" className="hover:text-foreground">Início</Link>
+          <Link to="/conteudos" className="hover:text-foreground">Conteúdos</Link>
+          <Link to="/lutas" search={{ servidor: "americas" }} className="hover:text-foreground">Lutas</Link>
+          <Link to="/kills" search={{ servidor: "americas" }} className="hover:text-foreground">Kills</Link>
+        </nav>
+      </div>
+    </footer>
+  );
 }
