@@ -30,6 +30,13 @@ export function shortNumber(value: number) {
   return String(Math.round(value));
 }
 
+/** Fama na lista de batalhas: "98K", "1.0M". */
+export function fameShort(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(Math.round(value));
+}
+
 /** Datas do jogo vêm com 7-9 casas decimais; alguns navegadores não leem isso. */
 export function gameDate(value: string) {
   return new Date(value.replace(/(\.\d{3})\d*/, "$1"));
