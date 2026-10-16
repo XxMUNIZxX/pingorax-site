@@ -53,12 +53,12 @@ export async function listBattles(server: Server, page: number, minPlayers: numb
     if (players.length < minPlayers) continue;
     const alliances = Object.values(obj(b["alliances"])).map(obj).sort((x, y) => num(y["kills"]) - num(x["kills"]) || num(y["killFame"]) - num(x["killFame"]));
     const guilds = Object.values(obj(b["guilds"])).map(obj).sort((x, y) => num(y["kills"]) - num(x["kills"]) || num(y["killFame"]) - num(x["killFame"]));
-    const groups = (alliances.length ? alliances : guilds).map((g) => str(g["name"])).filter(Boolean);
+    const groups = (guilds.length ? guilds : alliances).map((g) => str(g["name"])).filter(Boolean);
     if (q) {
       const hay = [...groups, ...guilds.map((g) => str(g["name"])), ...players.map((p) => str(p["name"]))].join("\n").toLowerCase();
       if (!hay.includes(q)) continue;
     }
-    out.push({ id: num(b["id"]), startTime: str(b["startTime"]), players: players.length, kills: num(b["totalKills"]), fame: num(b["totalFame"]), groups: groups.slice(0, 6) });
+    out.push({ id: num(b["id"]), startTime: str(b["startTime"]), players: players.length, kills: num(b["totalKills"]), fame: num(b["totalFame"]), groups: groups.slice(0, 12) });
   }
   return out;
 }

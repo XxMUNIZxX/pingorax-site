@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchBattleList } from "@/lib/albion.functions";
-import { SERVERS, gameDate, shortNumber, type Server } from "@/lib/albion-types";
+import { SERVERS, fameShort, gameDate, type Server } from "@/lib/albion-types";
 
 export function BattleList({ server, onServer }: { server: Server; onServer: (server: Server) => void }) {
   const [minPlayers, setMinPlayers] = useState(10);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
-  const navigate = useNavigate({ from: "/lutas" });
-  const open = (id: number) => void navigate({ search: { batalha: id, servidor: server } });
   const result = useQuery({
     queryKey: ["battles", server, minPlayers, query.trim().toLowerCase(), page],
     queryFn: () => fetchBattleList({ data: { server, page, minPlayers, query } }),
@@ -39,31 +37,35 @@ export function BattleList({ server, onServer }: { server: Server; onServer: (se
       </div>
       <p className="mt-2 text-xs text-muted-foreground">Atualiza sozinho a cada 15 segundos. A busca olha só as batalhas desta página da lista.</p>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card/60">
-        <table className="w-full min-w-[620px] text-sm">
-          <thead className="text-left text-xs uppercase tracking-widest text-muted-foreground">
-            <tr><th className="p-3">Data</th><th className="p-3">Batalha</th><th className="p-3 text-right">Jogadores</th><th className="p-3 text-right">Kills</th><th className="p-3 text-right">Fama</th></tr>
-          </thead>
-          <tbody>
-            {battles.map((b) => (
-              <tr key={b.id} tabIndex={0} onClick={() => open(b.id)} onKeyDown={(e) => { if (e.key === "Enter") open(b.id); }}
-                className="cursor-pointer border-t border-border/60 hover:bg-secondary/40 focus-visible:bg-secondary/40 focus-visible:outline-none">
-                <td className="whitespace-nowrap p-3 text-muted-foreground">{gameDate(b.startTime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
-                <td className="p-3">
-                  <Link to="/lutas" search={{ batalha: b.id, servidor: server }} className="font-semibold text-primary hover:underline" onClick={(e) => e.stopPropagation()}>#{b.id}</Link>
-                  <div className="text-xs text-muted-foreground">{b.groups.join(", ") || "—"}</div>
-                </td>
-                <td className="p-3 text-right">{b.players}</td>
-                <td className="p-3 text-right text-emerald-400">{b.kills}</td>
-                <td className="p-3 text-right text-amber-400">{shortNumber(b.fame)}</td>
-              </tr>
-            ))}
-            {result.isLoading && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Carregando batalhas...</td></tr>}
-            {!result.isLoading && result.data?.ok && battles.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Nenhuma batalha com esses filtros nesta página. Tente baixar o mínimo de jogadores ou ir para a próxima página.</td></tr>}
-            {result.data && !result.data.ok && <tr><td colSpan={5} className="p-6 text-center text-destructive">{result.data.error}</td></tr>}
-          </tbody>
-        </table>
+      <div className="mt-5 flex items-baseline justify-between px-1">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Batalhas</h2>
+        {result.data?.ok && <span className="text-xs text-muted-foreground">{battles.length} resultados</span>}
       </div>
+      <div className="mt-2 hidden grid-cols-[1fr_5rem_4rem_5rem] gap-3 px-4 pb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground sm:grid">
+        <span>Guildas · hora</span><span className="text-right">Jogadores</span><span className="text-right">Kills</span><span className="text-right">Fama</span>
+      </div>
+
+      <ul className="space-y-2">
+        {battles.map((b) => (
+          <li key={b.id}>
+            <Link to="/lutas" search={{ batalha: b.id, servidor: server }}
+              className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-card/60 px-4 py-3 transition-colors hover:border-primary/50 hover:bg-card/90 focus-visible:border-primary focus-visible:outline-none sm:grid-cols-[1fr_5rem_4rem_5rem]">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-bold">{b.groups.join(", ") || `Batalha #${b.id}`}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{gameDate(b.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} {gameDate(b.startTime).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · #{b.id}</div>
+              </div>
+              <div className="col-start-2 row-start-1 flex items-center justify-end gap-3 text-sm font-bold tabular-nums sm:contents">
+                <span className="text-right sm:col-start-2" title="Jogadores">{b.players}<span className="ml-1 text-[10px] font-normal uppercase text-muted-foreground sm:hidden">jog.</span></span>
+                <span className="text-right text-emerald-400 sm:col-start-3" title="Kills">{b.kills}<span className="ml-1 text-[10px] font-normal uppercase text-muted-foreground sm:hidden">kills</span></span>
+                <span className="text-right text-amber-400 sm:col-start-4" title="Fama">{fameShort(b.fame)}</span>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {result.isLoading && Array.from({ length: 6 }, (_, i) => <div key={i} className="mt-2 h-[60px] animate-pulse rounded-xl border border-border bg-card/40" />)}
+      {!result.isLoading && result.data?.ok && battles.length === 0 && <p className="mt-4 rounded-xl border border-border bg-card/60 p-6 text-center text-sm text-muted-foreground">Nenhuma batalha com esses filtros nesta página. Tente baixar o mínimo de jogadores ou ir para a próxima página.</p>}
+      {result.data && !result.data.ok && <p className="mt-4 rounded-xl border border-destructive/50 bg-card/60 p-6 text-center text-sm text-destructive">{result.data.error}</p>}
       <div className="mt-3 flex items-center justify-center gap-2">
         <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
         <span className="text-sm text-muted-foreground">Página {page + 1}</span>
