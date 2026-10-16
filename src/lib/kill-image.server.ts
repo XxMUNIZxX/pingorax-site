@@ -172,18 +172,33 @@ const MAX_INVENTORY = 32;
 
 export const iconUrl = (code: string) => `https://render.albiononline.com/v1/item/${encodeURIComponent(code)}.png?size=${CELL}&quality=1`;
 
+/** Baixa um ícone; tenta de novo (com outro formato de pedido) porque o serviço de imagens às vezes demora ou falha. */
 async function loadIcon(code: string): Promise<Img | null> {
-  try {
-    const response = await fetch(iconUrl(code), { signal: AbortSignal.timeout(5_000), cf: { cacheTtl: 86_400, cacheEverything: true } } as RequestInit);
-    if (!response.ok) return null;
-    return await decodePng(new Uint8Array(await response.arrayBuffer()));
-  } catch { return null; }
+  const variants = [iconUrl(code), `https://render.albiononline.com/v1/item/${encodeURIComponent(code)}.png?size=${CELL}`, iconUrl(code)];
+  for (const url of variants) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(9_000), cf: { cacheTtl: 86_400, cacheEverything: true } } as RequestInit);
+      if (response.ok) return await decodePng(new Uint8Array(await response.arrayBuffer()));
+      console.error("[kill-image] ícone", code, response.status);
+    } catch (error) { console.error("[kill-image] ícone", code, String(error)); }
+  }
+  return null;
+}
+
+/** Baixa vários ícones com poucos pedidos ao mesmo tempo (muitos juntos ficam na fila e estouram o tempo). */
+async function loadIcons(codes: string[], parallel = 5): Promise<Map<string, Img | null>> {
+  const out = new Map<string, Img | null>();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(parallel, codes.length) }, async () => {
+    while (next < codes.length) { const code = codes[next++]!; out.set(code, await loadIcon(code)); }
+  }));
+  return out;
 }
 
 const tagOf = (side: { alliance: string; guild: string }) => [side.alliance && `[${side.alliance}]`, side.guild].filter(Boolean).join(" ") || "sem guilda";
 
 /** Imagem da kill com o visual da página de kill do site. */
-export async function renderKillImage(kill: KillDetail): Promise<Uint8Array> {
+export async function renderKillImage(kill: KillDetail): Promise<{ png: Uint8Array; missing: number }> {
   const inventory = kill.inventory.slice(0, MAX_INVENTORY);
   const invRows = Math.ceil(inventory.length / 8);
   const COL = 3 * STEP - GAP + 16, CONTENT = 580, X0 = 24, Y0 = 24;
@@ -199,7 +214,8 @@ export async function renderKillImage(kill: KillDetail): Promise<Uint8Array> {
   const codes = new Set<string>();
   for (const g of [kill.killer.gear, kill.victim.gear]) for (const row of LAYOUT) for (const slot of row) if (slot && g[slot]) codes.add(g[slot]!);
   for (const item of inventory) codes.add(item.type);
-  const icons = new Map<string, Img | null>(await Promise.all([...codes].slice(0, 44).map(async (code) => [code, await loadIcon(code)] as const)));
+  const icons = await loadIcons([...codes].slice(0, 44));
+  const missing = [...icons.values()].filter((icon) => !icon).length;
 
   const cell = (x: number, y: number, code?: string, count = 0) => {
     box(img, x - 1, y - 1, CELL + 2, CELL + 2, BG, BORDER);
@@ -240,5 +256,5 @@ export async function renderKillImage(kill: KillDetail): Promise<Uint8Array> {
     const gridX = X0 + Math.round((CONTENT - (8 * STEP - GAP)) / 2);
     inventory.forEach((item, i) => cell(gridX + (i % 8) * STEP, invTop + Math.floor(i / 8) * STEP, item.type, item.count));
   }
-  return encodePng(img);
+  return { png: await encodePng(img), missing };
 }
