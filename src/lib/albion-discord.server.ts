@@ -52,23 +52,37 @@ export async function battleMessage(server: Server, id: number): Promise<EmbedMe
   };
 }
 
-/** Uma kill: quem matou quem, equipamento principal, fama e participantes. */
+const SLOT_LABEL = [["weapon", "Arma"], ["offhand", "Secundária"], ["helmet", "Capacete"], ["armor", "Armadura"], ["boots", "Botas"], ["cape", "Capa"], ["mount", "Montaria"]] as const;
+const code = (text: string) => `\`${text.replace(/`/g, "'")}\``;
+const gearLines = (gear: Record<string, string | undefined>) =>
+  SLOT_LABEL.filter(([slot]) => gear[slot]).map(([slot, label]) => `${label}: ${prettyItem(gear[slot]!)}`).join("\n") || "sem equipamento";
+
+/** Uma kill no estilo dos killboards do Discord: quem matou quem, participantes, guilda, IP, fama e equipamento. */
 export async function killMessage(server: Server, id: number): Promise<EmbedMessage> {
   const k = await killDetail(server, id);
   const unix = Math.floor(gameDate(k.time).getTime() / 1000);
-  const side = (s: typeof k.killer) => `**${safe(s.name)}**\n${tagOf(s)}\nIP ${s.ip || "?"}${s.gear.weapon ? `\n${prettyItem(s.gear.weapon)}` : ""}`;
-  const top = k.participants.slice(0, 5).map((p) => `${safe(p.name)} — ${shortNumber(p.damage)} dano${p.heal ? ` · ${shortNumber(p.heal)} cura` : ""}`).join("\n");
+  const link = (name: string, playerId?: string) => (playerId ? `[${safe(name)}](${SHARE_ORIGIN}/kills?servidor=${server}&jogador=${encodeURIComponent(playerId)})` : safe(name));
+  const side = (s: typeof k.killer, extra = "") =>
+    `**${link(s.name, s.id)}**\nGuilda: ${code(`${s.alliance ? `[${s.alliance}]` : ""}${s.guild || "sem guilda"}`)}\nIP: ${code(String(s.ip || "?"))}${extra}`;
+  const helpers = k.participants.filter((p) => p.name !== k.killer.name).slice(0, 8).map((p) => link(p.name, p.id)).join(", ");
+  const description = [
+    helpers ? `Participantes: ${helpers}${k.assists > helpers.split(", ").length ? ` e mais ${k.assists - helpers.split(", ").length}` : ""}` : "",
+    "",
+    side(k.killer),
+    "──────────⚔️──────────",
+    side(k.victim, `\nFama: ${code(k.fame.toLocaleString("en-US"))}`),
+  ].join("\n");
   return {
     embeds: [{
-      title: clip(`${k.killer.name} matou ${k.victim.name}`, 256), url: `${SHARE_ORIGIN}/kills?servidor=${server}&kill=${k.id}`, color: 0xef4444,
-      description: `**${shortNumber(k.fame)}** de fama · <t:${unix}:F> (<t:${unix}:R>)${k.assists ? `\n+${k.assists} participante(s)` : ""}`,
-      thumbnail: k.killer.gear.weapon ? { url: iconUrl(k.killer.gear.weapon) } : undefined,
+      title: clip(`${k.killer.name} matou ${k.victim.name}`, 256), url: `${SHARE_ORIGIN}/kills?servidor=${server}&kill=${k.id}`, color: 0x22c55e,
+      description: clip(description, 4000),
+      thumbnail: k.victim.gear.weapon ? { url: iconUrl(k.victim.gear.weapon) } : undefined,
       fields: [
-        { name: "Matador", value: clip(side(k.killer), 1024), inline: true },
-        { name: "Vítima", value: clip(side(k.victim), 1024), inline: true },
-        ...(top ? [{ name: "Participantes", value: clip(top, 1024), inline: false }] : []),
+        { name: `Equipamento de ${clip(k.killer.name, 30)}`, value: clip(gearLines(k.killer.gear), 1024), inline: true },
+        { name: `Equipamento de ${clip(k.victim.name, 30)}`, value: clip(gearLines(k.victim.gear), 1024), inline: true },
       ],
-      footer: { text: `PingoraX · ${SERVER_NAME[server]} · veja equipamento e inventário no site` },
+      footer: { text: `${SERVER_NAME[server]} · ${gameDate(k.time).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })} · inventário completo no site` },
+      timestamp: new Date(unix * 1000).toISOString(),
     }],
     allowed_mentions: { parse: [] },
   };
