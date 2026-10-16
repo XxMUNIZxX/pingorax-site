@@ -102,3 +102,45 @@
   border-radius: var(--radius-lg);
 }
 @utility glow { box-shadow: var(--shadow-glow); }
+
+/* Botões de destaque da página inicial: grandes, claros sobre o fundo escuro e com a seta que avança ao passar o mouse. */
+@utility cta-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  padding: 0.5rem 1.4rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: oklch(0.16 0.02 270);
+  background-image: var(--gradient-brand);
+  box-shadow: 0 8px 24px oklch(0.62 0.16 270 / 0.38), inset 0 1px 0 oklch(1 0 0 / 0.4);
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+  &:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 12px 30px oklch(0.62 0.16 270 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.4); }
+  &:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 3px; }
+  & svg { width: 1.15rem; height: 1.15rem; transition: transform 150ms ease; }
+  &:hover svg { transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) { &, & svg { transition: none; } &:hover, &:hover svg { transform: none; } }
+}
+@utility cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  padding: 0.5rem 1.4rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+  background-color: oklch(0.22 0.023 270 / 0.7);
+  border: 1.5px solid oklch(0.76 0.13 250 / 0.7);
+  transition: background-color 150ms ease, border-color 150ms ease;
+  &:hover { background-color: oklch(0.76 0.13 250 / 0.18); border-color: var(--color-primary); }
+  &:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 3px; }
+  & svg { width: 1.15rem; height: 1.15rem; transition: transform 150ms ease; }
+  &:hover svg { transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) { &, & svg { transition: none; } &:hover svg { transform: none; } }
+}

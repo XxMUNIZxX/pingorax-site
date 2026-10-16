@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Bot, CalendarDays, Hammer, Skull, Swords, Users } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 import hero from "@/assets/hero.jpg";
 import { fetchBattleList, fetchRecentKills } from "@/lib/albion.functions";
 import { fameShort, shortNumber, timeAgo } from "@/lib/albion-types";
@@ -126,10 +125,11 @@ const AREAS: Area[] = [
 ];
 
 function AreaLink({ to, children }: { to: Area["to"]; children: ReactNode }) {
-  if (to === "/lutas") return <Link to="/lutas" search={{ servidor: "americas" }}>{children}</Link>;
-  if (to === "/kills") return <Link to="/kills" search={{ servidor: "americas" }}>{children}</Link>;
-  if (to === "/builds") return <Link to="/builds">{children}</Link>;
-  return <Link to="/conteudos">{children}</Link>;
+  const className = "cta-primary w-full sm:w-auto";
+  if (to === "/lutas") return <Link to="/lutas" search={{ servidor: "americas" }} className={className}>{children}</Link>;
+  if (to === "/kills") return <Link to="/kills" search={{ servidor: "americas" }} className={className}>{children}</Link>;
+  if (to === "/builds") return <Link to="/builds" className={className}>{children}</Link>;
+  return <Link to="/conteudos" className={className}>{children}</Link>;
 }
 
 function Home() {
@@ -144,8 +144,8 @@ function Home() {
             <h1 className="max-w-[18ch] text-4xl font-extrabold leading-[1.05] md:text-6xl">Conteúdos, builds e lutas de Albion num só lugar.</h1>
             <p className="mt-5 max-w-[52ch] text-lg text-foreground/90">Inscreva-se nos conteúdos com a sua arma, monte builds em grupo e analise lutas e kills do Albion. Tudo conectado ao Discord da sua guilda.</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Button variant="gold" size="lg" asChild><Link to="/conteudos">Ver conteúdos<ArrowRight /></Link></Button>
-              <Button variant="outline" size="lg" asChild><Link to="/lutas" search={{ servidor: "americas" }}>Ver lutas agora</Link></Button>
+              <Link to="/conteudos" className="cta-primary">Ver conteúdos<ArrowRight /></Link>
+              <Link to="/lutas" search={{ servidor: "americas" }} className="cta-secondary">Ver lutas agora</Link>
             </div>
           </div>
           <LivePanel />
@@ -165,7 +165,7 @@ function Home() {
               </ul>
               {area.extra === "contents" && <NextContents />}
               {area.extra === "kills" && <RecentKills />}
-              <div className="mt-auto pt-6"><Button variant="outline" size="sm" asChild><AreaLink to={area.to}>{area.cta}<ArrowRight /></AreaLink></Button></div>
+              <div className="mt-auto pt-6"><AreaLink to={area.to}>{area.cta}<ArrowRight /></AreaLink></div>
             </article>
           ))}
         </div>
@@ -177,7 +177,7 @@ function Home() {
             <h2 id="bot-heading" className="flex items-center gap-2.5 text-3xl font-extrabold"><Bot className="h-7 w-7 text-primary" aria-hidden />Bot do PingoraX no seu Discord</h2>
             <p className="mt-3 max-w-[58ch] text-muted-foreground">Cada conteúdo vira um cartão no canal da guilda, com as armas já escolhidas e um botão para pingar ou sair. Qualquer pessoa do servidor também consulta lutas e kills sem sair do chat.</p>
             <p className="mt-3 max-w-[58ch] text-muted-foreground">Para ligar no seu servidor, abra Criar conteúdo e siga o passo a passo do Discord. Leva poucos minutos.</p>
-            <div className="mt-6"><Button variant="gold" asChild><Link to="/criar">Conectar meu servidor<ArrowRight /></Link></Button></div>
+            <div className="mt-6"><Link to="/criar" className="cta-primary">Conectar meu servidor<ArrowRight /></Link></div>
           </div>
           <div className="rounded-xl border border-border bg-background/70 p-5 font-mono text-sm leading-7 shadow-inner">
             <p><span className="text-primary">/pingorax conectar</span> <span className="text-muted-foreground">liga o bot ao canal da guilda</span></p>
@@ -197,7 +197,7 @@ function Home() {
             </li>
           ))}
         </ol>
-        <div className="mt-8 text-center"><Button variant="gold" size="lg" asChild><Link to="/conteudos">Ver próximos conteúdos<ArrowRight /></Link></Button></div>
+        <div className="mt-8 text-center"><Link to="/conteudos" className="cta-primary">Ver próximos conteúdos<ArrowRight /></Link></div>
       </section>
     </main>
   );
