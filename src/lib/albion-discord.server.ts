@@ -17,7 +17,6 @@ export function prettyItem(code: string) {
   const name = (words.length ? words : match[2]!.split("_")).map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
   return `${match[1]}${match[3] ? `.${match[3]}` : ""} ${name}`;
 }
-const iconUrl = (code: string) => `https://render.albiononline.com/v1/item/${encodeURIComponent(code)}.png?quality=1&size=128`;
 const tagOf = (side: { alliance: string; guild: string }) => [side.alliance && `[${safe(side.alliance)}]`, side.guild && safe(side.guild)].filter(Boolean).join(" ") || "sem guilda";
 
 export type EmbedMessage = { embeds: object[]; allowed_mentions: { parse: string[] } };
@@ -76,7 +75,7 @@ export async function killMessage(server: Server, id: number): Promise<EmbedMess
     embeds: [{
       title: clip(`${k.killer.name} matou ${k.victim.name}`, 256), url: `${SHARE_ORIGIN}/kills?servidor=${server}&kill=${k.id}`, color: 0x22c55e,
       description: clip(description, 4000),
-      thumbnail: k.victim.gear.weapon ? { url: iconUrl(k.victim.gear.weapon) } : undefined,
+      image: { url: `${SHARE_ORIGIN}/api/public/kill-image?s=${server}&id=${k.id}` },
       fields: [
         { name: `Equipamento de ${clip(k.killer.name, 30)}`, value: clip(gearLines(k.killer.gear), 1024), inline: true },
         { name: `Equipamento de ${clip(k.victim.name, 30)}`, value: clip(gearLines(k.victim.gear), 1024), inline: true },
