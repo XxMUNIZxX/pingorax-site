@@ -166,6 +166,8 @@ export async function registerCommands(appId: string, cfg: DiscordConfig) {
       options: [{ type: 1, name: "conectar", description: "Gera um código para ligar este canal à sua conta do PingoraX" }] },
     { name: "luta", type: 1, description: "Mostra a análise de uma batalha do Albion", options: [idOption("da batalha"), serverOption] },
     { name: "kill", type: 1, description: "Mostra uma kill do Albion", options: [idOption("da kill"), serverOption] },
+    { name: "build", type: 1, description: "Mostra a imagem de uma build ou de um grupo de builds do PingoraX",
+      options: [{ type: 3, name: "nome", description: "Comece a digitar o nome da build ou do grupo", required: true, autocomplete: true, max_length: 100 }] },
   ]) });
 }
 
@@ -212,7 +214,7 @@ type Interaction = {
   channel_id?: string; guild_id?: string;
   member?: { nick?: string | null; permissions?: string; user?: { id?: string; username?: string; global_name?: string | null } };
   token?: string; application_id?: string;
-  data?: { name?: string; options?: { name: string; value?: string | number }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
+  data?: { name?: string; options?: { name: string; value?: string | number; focused?: boolean }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
   user?: { id?: string; username?: string; global_name?: string | null };
 };
 
@@ -262,8 +264,35 @@ async function analysisCommand(body: Interaction, kind: "luta" | "kill") {
   }
 }
 
+/** /build: mostra a imagem de uma build ou de um grupo (o nome vem do autocomplete ou digitado). */
+async function buildCommand(body: Interaction) {
+  const raw = String(body.data?.options?.find((o) => o.name === "nome")?.value ?? "").trim();
+  if (!raw) return ephemeral("Digite o nome da build ou do grupo.");
+  try {
+    const { resolveRef, buildMessage } = await import("@/lib/build-discord.server");
+    const run = async () => { const ref = await resolveRef(raw); return ref ? buildMessage(ref) : null; };
+    const message = await Promise.race([run(), new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 2500))]);
+    if (message === undefined) return ephemeral("O banco demorou para responder. Tente o comando de novo.");
+    if (!message) return ephemeral("Não achei essa build. Comece a digitar o nome e escolha uma das opções da lista.");
+    return { type: 4, data: message };
+  } catch (error) {
+    console.error("[discord] build", error);
+    return ephemeral("Não consegui carregar essa build agora. Tente de novo em instantes.");
+  }
+}
+
 export async function handleInteraction(body: Interaction) {
   if (body.type === 1) return { type: 1 };
+
+  // Autocomplete do /build (type 4): devolve até 25 nomes.
+  if (body.type === 4 && body.data?.name === "build") {
+    try {
+      const { searchBuilds } = await import("@/lib/build-discord.server");
+      const typed = String(body.data.options?.find((o) => o.focused)?.value ?? "");
+      return { type: 8, data: { choices: await searchBuilds(typed) } };
+    } catch (error) { console.error("[discord] autocomplete", error); return { type: 8, data: { choices: [] } }; }
+  }
+  if (body.type === 2 && body.data?.name === "build") return buildCommand(body);
 
   if (body.type === 2 && (body.data?.name === "luta" || body.data?.name === "kill")) return analysisCommand(body, body.data.name);
 

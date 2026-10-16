@@ -183,6 +183,7 @@ function Home() {
             <p><span className="text-primary">/pingorax conectar</span> <span className="text-muted-foreground">liga o bot ao canal da guilda</span></p>
             <p><span className="text-primary">/luta</span> <span className="text-muted-foreground">número ou link da luta, com imagem-resumo</span></p>
             <p><span className="text-primary">/kill</span> <span className="text-muted-foreground">número ou link da kill, com equipamento</span></p>
+            <p><span className="text-primary">/build</span> <span className="text-muted-foreground">nome da build ou do grupo, com imagem</span></p>
           </div>
         </div>
       </section>
