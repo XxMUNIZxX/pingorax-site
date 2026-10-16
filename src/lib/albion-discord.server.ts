@@ -51,10 +51,7 @@ export async function battleMessage(server: Server, id: number): Promise<EmbedMe
   };
 }
 
-const SLOT_LABEL = [["weapon", "Arma"], ["offhand", "Secundária"], ["helmet", "Capacete"], ["armor", "Armadura"], ["boots", "Botas"], ["cape", "Capa"], ["mount", "Montaria"]] as const;
 const code = (text: string) => `\`${text.replace(/`/g, "'")}\``;
-const gearLines = (gear: Record<string, string | undefined>) =>
-  SLOT_LABEL.filter(([slot]) => gear[slot]).map(([slot, label]) => `${label}: ${prettyItem(gear[slot]!)}`).join("\n") || "sem equipamento";
 
 /** Uma kill no estilo dos killboards do Discord: quem matou quem, participantes, guilda, IP, fama e equipamento. */
 export async function killMessage(server: Server, id: number): Promise<EmbedMessage> {
@@ -76,11 +73,7 @@ export async function killMessage(server: Server, id: number): Promise<EmbedMess
       title: clip(`${k.killer.name} matou ${k.victim.name}`, 256), url: `${SHARE_ORIGIN}/kills?servidor=${server}&kill=${k.id}`, color: 0x22c55e,
       description: clip(description, 4000),
       image: { url: `${SHARE_ORIGIN}/api/public/kill-image?s=${server}&id=${k.id}` },
-      fields: [
-        { name: `Equipamento de ${clip(k.killer.name, 30)}`, value: clip(gearLines(k.killer.gear), 1024), inline: true },
-        { name: `Equipamento de ${clip(k.victim.name, 30)}`, value: clip(gearLines(k.victim.gear), 1024), inline: true },
-      ],
-      footer: { text: `${SERVER_NAME[server]} · ${gameDate(k.time).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })} · inventário completo no site` },
+      footer: { text: SERVER_NAME[server] },
       timestamp: new Date(unix * 1000).toISOString(),
     }],
     allowed_mentions: { parse: [] },

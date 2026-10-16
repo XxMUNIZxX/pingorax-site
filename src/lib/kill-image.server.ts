@@ -1,4 +1,4 @@
-import type { Gear, KillDetail } from "@/lib/albion-types";
+import { gameDate, type Gear, type KillDetail } from "@/lib/albion-types";
 
 // Imagem da kill (equipamento dos dois lados, fama e inventário), desenhada aqui mesmo sem nenhuma biblioteca:
 // os ícones vêm do serviço de imagens do jogo, são colados num quadro e o PNG é montado com as APIs do Worker.
@@ -114,7 +114,7 @@ function blit(img: Img, icon: Img, x: number, y: number, size: number) {
 // Fonte mínima 3x5 para números (fama e quantidades).
 const GLYPHS: Record<string, string> = {
   "0": "111101101101111", "1": "010110010010111", "2": "111001111100111", "3": "111001111001111", "4": "101101111001001",
-  "5": "111100111001111", "6": "111100111101111", "7": "111001001001001", "8": "111101111101111", "9": "111101111001111", ",": "000000000010100",
+  "5": "111100111001111", "6": "111100111101111", "7": "111001001001001", "8": "111101111101111", "9": "111101111001111", ",": "000000000010100", "/": "001001010100100", ":": "000010000010000",
 };
 function text(img: Img, value: string, x: number, y: number, scale: number, color: number[]) {
   let at = x;
@@ -129,6 +129,15 @@ function text(img: Img, value: string, x: number, y: number, scale: number, colo
   }
 }
 const textWidth = (value: string, scale: number) => value.length * 4 * scale - scale;
+
+const SKULL = ["..11111..", ".1111111.", "11.111.11", "11.111.11", "1111111111".slice(0, 9), ".1111111.", "..1.1.1..", "..1.1.1.."];
+/** Caveira de "morto" num círculo cinza, no meio da imagem. */
+function skull(img: Img, cx: number, cy: number) {
+  const radius = 28;
+  for (let j = -radius; j <= radius; j++) for (let i = -radius; i <= radius; i++) if (i * i + j * j <= radius * radius) fill(img, cx + i, cy + j, 1, 1, [110, 108, 106]);
+  const scale = 4;
+  SKULL.forEach((row, y) => [...row].forEach((c, x) => { if (c === "1") fill(img, cx - Math.round((9 * scale) / 2) + x * scale, cy - Math.round((8 * scale) / 2) + y * scale, scale, scale, [250, 250, 250]); }));
+}
 
 const CELL = 64, GAP = 4, STEP = CELL + GAP, PAD = 12;
 // Mesma arrumação do jogo: 3 colunas por lado.
@@ -177,11 +186,16 @@ export async function renderKillImage(kill: KillDetail): Promise<Uint8Array> {
   side(kill.killer.gear, PAD);
   side(kill.victim.gear, PAD + panel + centre);
 
-  // Centro: fama da vítima.
+  // Centro (como no killboard do jogo): fama, caveira, data e hora.
+  const mid = PAD + panel + Math.round((centre - GAP) / 2);
+  const centred = (value: string, y: number, scale: number, color: number[]) => text(img, value, mid - Math.round(textWidth(value, scale) / 2), y, scale, color);
   const fame = kill.fame.toLocaleString("en-US");
-  const scale = fame.length > 9 ? 2 : 3;
-  text(img, fame, PAD + panel + Math.round((centre - GAP - textWidth(fame, scale)) / 2), PAD + Math.round(top / 2) - 8, scale, [122, 62, 14]);
-  fill(img, PAD + panel + 18, PAD + Math.round(top / 2) + 20, centre - GAP - 36, 3, [122, 62, 14]);
+  centred(fame, PAD + 34, fame.length > 9 ? 2 : 3, [122, 62, 14]);
+  skull(img, mid, PAD + Math.round(top / 2) + 6);
+  const when = gameDate(kill.time);
+  const zone = { timeZone: "America/Sao_Paulo" } as const;
+  centred(when.toLocaleDateString("pt-BR", { ...zone, day: "2-digit", month: "2-digit", year: "numeric" }), PAD + top - 62, 2, [90, 62, 30]);
+  centred(when.toLocaleTimeString("pt-BR", { ...zone, hour: "2-digit", minute: "2-digit", hour12: false }), PAD + top - 44, 2, [90, 62, 30]);
 
   const invTop = PAD + top + PAD;
   inventory.forEach((item, i) => cell(PAD + (i % 8) * STEP, invTop + Math.floor(i / 8) * STEP, item.type, item.count));
