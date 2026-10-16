@@ -51,7 +51,7 @@ export async function playerProfile(server: Server, id: string): Promise<PlayerP
 /** Uma kill completa: equipamento, inventário da vítima e participantes. */
 export async function killDetail(server: Server, id: number): Promise<KillDetail> {
   if (!Number.isInteger(id) || id <= 0) throw new Error("Kill inválida");
-  const e = obj(await api<unknown>(server, `/events/${id}`, 600_000));
+  const e = obj(await api<unknown>(server, `/events/${id}`, 600_000, 10_000));
   const victim = obj(e["Victim"]);
   const inventory = list(victim["Inventory"]).map(obj).map((item) => ({ type: str(item["Type"]), count: Math.max(1, num(item["Count"])) })).filter((item) => item.type);
   const participants: KillParticipant[] = list(e["Participants"]).map(obj).map((p) => ({

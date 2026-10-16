@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { ItemSlot } from "@/components/item-slot";
 import { BuildGear, useItemNames } from "@/components/build-view";
 import { SendToDiscord } from "@/components/send-to-discord";
 import { fetchKill } from "@/lib/albion.functions";
-import { gameDate, shortNumber, type KillDetail, type KillSide, type Server } from "@/lib/albion-types";
+import { gameDate, shortNumber, type KillDetail, type KillSide, type KillSummary, type Server } from "@/lib/albion-types";
 
 const card = "rounded-xl border border-border bg-card/60";
 
@@ -23,7 +23,7 @@ function Fighter({ side, server, align }: { side: KillSide; server: Server; alig
   );
 }
 
-function Body({ kill, server }: { kill: KillDetail; server: Server }) {
+function Body({ kill, server, loading = false }: { kill: KillDetail; server: Server; loading?: boolean }) {
   const nameOf = useItemNames();
   const when = gameDate(kill.time);
   return (
@@ -42,6 +42,8 @@ function Body({ kill, server }: { kill: KillDetail; server: Server }) {
           <Fighter side={kill.victim} server={server} align="right" />
         </div>
       </section>
+
+      {loading && <p className="animate-pulse text-sm text-muted-foreground">Carregando inventário e participantes...</p>}
 
       {kill.inventory.length > 0 && (
         <section className={`${card} p-4`} aria-label="Inventário">
@@ -84,14 +86,17 @@ function Body({ kill, server }: { kill: KillDetail; server: Server }) {
 }
 
 export function KillDetailView({ server, id }: { server: Server; id: number }) {
-  const result = useQuery({ queryKey: ["kill", server, id], queryFn: () => fetchKill({ data: { server, id } }), staleTime: 300_000 });
+  const result = useQuery({ queryKey: ["kill", server, id], queryFn: () => fetchKill({ data: { server, id } }), staleTime: 300_000, retry: 1 });
+  // Ao vir do feed já temos quem matou quem e o equipamento: mostra isso enquanto o resto carrega.
+  const preview = useQueryClient().getQueryData<KillSummary>(["kill-preview", server, id]);
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" size="sm" asChild><Link to="/kills" search={{ servidor: server }}><ArrowLeft /> Voltar às kills</Link></Button>
         <SendToDiscord kind="kill" server={server} id={id} />
       </div>
-      {result.isLoading && <p className="mt-6 text-muted-foreground">Carregando kill #{id}...</p>}
+      {result.isLoading && preview && <Body kill={{ ...preview, inventory: [], participants: [], location: "" }} server={server} loading />}
+      {result.isLoading && !preview && <p className="mt-6 animate-pulse text-muted-foreground">Carregando kill #{id}...</p>}
       {result.data && !result.data.ok && <p className="mt-6 text-destructive">{result.data.error}</p>}
       {result.data?.ok && <Body kill={result.data.kill} server={server} />}
     </div>

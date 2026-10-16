@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { fetchKill } from "@/lib/albion.functions";
 import { ItemSlot } from "@/components/item-slot";
 import { useItemNames } from "@/components/build-view";
 import { parseGearCode } from "@/lib/builds";
@@ -32,10 +34,16 @@ const KIND = { kill: { label: "KILL", color: "text-emerald-400", border: "border
 export function KillRow({ kill, server, kind }: { kill: KillSummary; server: Server; kind?: "kill" | "death" }) {
   const navigate = useNavigate();
   const nameOf = useItemNames();
-  const open = () => void navigate({ to: "/kills", search: { servidor: server, kill: kill.id } });
+  const queryClient = useQueryClient();
+  // Começa a buscar o detalhe assim que o mouse (ou dedo) chega na linha; o clique já encontra tudo pronto.
+  const warm = () => void queryClient.prefetchQuery({ queryKey: ["kill", server, kill.id], queryFn: () => fetchKill({ data: { server, id: kill.id } }), staleTime: 300_000 });
+  const open = () => {
+    queryClient.setQueryData(["kill-preview", server, kill.id], kill); // o cabeçalho aparece na hora
+    void navigate({ to: "/kills", search: { servidor: server, kill: kill.id } });
+  };
   const mark = kind ? KIND[kind] : null;
   return (
-    <div role="link" tabIndex={0} onClick={open} onKeyDown={(e) => { if (e.key === "Enter") open(); }}
+    <div role="link" tabIndex={0} onClick={open} onMouseEnter={warm} onFocus={warm} onTouchStart={warm} onKeyDown={(e) => { if (e.key === "Enter") open(); }}
       className={`grid cursor-pointer grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-card/60 px-3 py-2.5 transition-colors hover:border-primary/50 hover:bg-card/90 focus-visible:border-primary focus-visible:outline-none md:grid-cols-[4.5rem_minmax(0,1fr)_1.75rem_minmax(0,1fr)_auto] ${mark ? `border-l-4 ${mark.border}` : ""}`}>
       <div className="order-1 text-xs md:order-none">
         {mark && <div className={`font-bold ${mark.color}`}>{mark.label}</div>}
