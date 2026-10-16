@@ -104,7 +104,7 @@ export const fill = (img: Img, x: number, y: number, w: number, h: number, [r, g
 export const box = (img: Img, x: number, y: number, w: number, h: number, bg: Rgb, border: Rgb) => { fill(img, x, y, w, h, border); fill(img, x + 2, y + 2, w - 4, h - 4, bg); };
 
 /** Cola o ícone (escalado se preciso) sobre o quadro respeitando a transparência. */
-function blit(img: Img, icon: Img, x: number, y: number, size: number) {
+export function blit(img: Img, icon: Img, x: number, y: number, size: number) {
   for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
     const s = (Math.floor((j * icon.h) / size) * icon.w + Math.floor((i * icon.w) / size)) * 4;
     const a = icon.px[s + 3]! / 255;
@@ -165,7 +165,7 @@ function skull(img: Img, cx: number, cy: number) {
   SKULL.forEach((row, y) => [...row].forEach((c, x) => { if (c === "1") fill(img, cx - Math.round((9 * scale) / 2) + x * scale, cy - Math.round((8 * scale) / 2) + y * scale, scale, scale, FG); }));
 }
 
-const CELL = 64, GAP = 4, STEP = CELL + GAP;
+export const CELL = 64, GAP = 4, STEP = CELL + GAP;
 // Mesma arrumação do jogo e da página: 3 colunas por lado.
 const LAYOUT: (keyof Gear | null)[][] = [["bag", "helmet", "cape"], ["weapon", "armor", "offhand"], ["food", "boots", "potion"], [null, "mount", null]];
 const MAX_INVENTORY = 32;
@@ -186,7 +186,7 @@ async function loadIcon(code: string): Promise<Img | null> {
 }
 
 /** Baixa vários ícones com poucos pedidos ao mesmo tempo (muitos juntos ficam na fila e estouram o tempo). */
-async function loadIcons(codes: string[], parallel = 5): Promise<Map<string, Img | null>> {
+export async function loadIcons(codes: string[], parallel = 5): Promise<Map<string, Img | null>> {
   const out = new Map<string, Img | null>();
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(parallel, codes.length) }, async () => {

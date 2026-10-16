@@ -96,4 +96,4 @@ A aba **Lutas** (`/lutas`) lê a API pública do Albion (sem chave) pelo servido
 ## Kills e comandos do bot
 - A aba **Kills** (`/kills`) mostra o feed de kills, busca de jogador (histórico de kills e mortes) e o detalhe de cada kill (equipamento, inventário, participantes), tudo pela API pública do Albion.
 - Nas páginas de **Lutas** e de **Kill** há o botão **Enviar ao Discord**, que posta a análise num canal conectado.
-- No Discord: `/luta id:<número ou link>` e `/kill id:<número ou link>` (opcional `servidor`) postam o cartão de análise no canal. Depois de atualizar o site, clique em **Registrar comandos do bot** (Criar conteúdo > Discord do meu servidor, só admin) para o Discord conhecer os comandos novos.
+- No Discord: `/luta id:<número ou link>` e `/kill id:<número ou link>` (opcional `servidor`) postam o cartão de análise no canal. `/build nome:<nome>` (com autocomplete) posta a imagem de uma build ou de um grupo de builds. Depois de atualizar o site, clique em **Registrar comandos do bot** (Criar conteúdo > Discord do meu servidor, só admin) para o Discord conhecer os comandos novos.
