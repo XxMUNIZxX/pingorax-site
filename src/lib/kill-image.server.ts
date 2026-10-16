@@ -94,9 +94,14 @@ export async function encodePng(img: Img): Promise<Uint8Array> {
 }
 
 // ---- Desenho ----
-const fill = (img: Img, x: number, y: number, w: number, h: number, [r, g, b, a = 255]: number[]) => {
+type Rgb = number[];
+// Mesmas cores do site (tema escuro).
+const BG: Rgb = [10, 13, 21], CARD: Rgb = [22, 26, 37], BORDER: Rgb = [62, 66, 80], PRIMARY: Rgb = [109, 182, 255], FG: Rgb = [240, 242, 247], MUTED: Rgb = [182, 186, 199], AMBER: Rgb = [251, 191, 36];
+
+const fill = (img: Img, x: number, y: number, w: number, h: number, [r, g, b, a = 255]: Rgb) => {
   for (let j = Math.max(0, y); j < Math.min(img.h, y + h); j++) for (let i = Math.max(0, x); i < Math.min(img.w, x + w); i++) img.px.set([r!, g!, b!, a], (j * img.w + i) * 4);
 };
+const box = (img: Img, x: number, y: number, w: number, h: number, bg: Rgb, border: Rgb) => { fill(img, x, y, w, h, border); fill(img, x + 2, y + 2, w - 4, h - 4, bg); };
 
 /** Cola o ícone (escalado se preciso) sobre o quadro respeitando a transparência. */
 function blit(img: Img, icon: Img, x: number, y: number, size: number) {
@@ -111,36 +116,57 @@ function blit(img: Img, icon: Img, x: number, y: number, size: number) {
   }
 }
 
-// Fonte mínima 3x5 para números (fama e quantidades).
-const GLYPHS: Record<string, string> = {
-  "0": "111101101101111", "1": "010110010010111", "2": "111001111100111", "3": "111001111001111", "4": "101101111001001",
-  "5": "111100111001111", "6": "111100111101111", "7": "111001001001001", "8": "111101111101111", "9": "111101111001111", ",": "000000000010100", "/": "001001010100100", ":": "000010000010000",
+// Fonte 5x7 (só maiúsculas, números e pontuação comum); minúsculas viram maiúsculas e acentos são removidos.
+const FONT: Record<string, string> = {
+  A: "01110 10001 10001 11111 10001 10001 10001", B: "11110 10001 10001 11110 10001 10001 11110", C: "01110 10001 10000 10000 10000 10001 01110",
+  D: "11110 10001 10001 10001 10001 10001 11110", E: "11111 10000 10000 11110 10000 10000 11111", F: "11111 10000 10000 11110 10000 10000 10000",
+  G: "01110 10001 10000 10111 10001 10001 01111", H: "10001 10001 10001 11111 10001 10001 10001", I: "01110 00100 00100 00100 00100 00100 01110",
+  J: "00111 00010 00010 00010 00010 10010 01100", K: "10001 10010 10100 11000 10100 10010 10001", L: "10000 10000 10000 10000 10000 10000 11111",
+  M: "10001 11011 10101 10101 10001 10001 10001", N: "10001 11001 10101 10011 10001 10001 10001", O: "01110 10001 10001 10001 10001 10001 01110",
+  P: "11110 10001 10001 11110 10000 10000 10000", Q: "01110 10001 10001 10001 10101 10010 01101", R: "11110 10001 10001 11110 10100 10010 10001",
+  S: "01111 10000 10000 01110 00001 00001 11110", T: "11111 00100 00100 00100 00100 00100 00100", U: "10001 10001 10001 10001 10001 10001 01110",
+  V: "10001 10001 10001 10001 10001 01010 00100", W: "10001 10001 10001 10101 10101 11011 10001", X: "10001 10001 01010 00100 01010 10001 10001",
+  Y: "10001 10001 01010 00100 00100 00100 00100", Z: "11111 00001 00010 00100 01000 10000 11111",
+  "0": "01110 10001 10011 10101 11001 10001 01110", "1": "00100 01100 00100 00100 00100 00100 01110", "2": "01110 10001 00001 00010 00100 01000 11111",
+  "3": "11110 00001 00001 01110 00001 00001 11110", "4": "00010 00110 01010 10010 11111 00010 00010", "5": "11111 10000 11110 00001 00001 10001 01110",
+  "6": "00110 01000 10000 11110 10001 10001 01110", "7": "11111 00001 00010 00100 01000 01000 01000", "8": "01110 10001 10001 01110 10001 10001 01110",
+  "9": "01110 10001 10001 01111 00001 00010 01100",
+  ".": "00000 00000 00000 00000 00000 01100 01100", ",": "00000 00000 00000 00000 01100 00100 01000", "-": "00000 00000 00000 11111 00000 00000 00000",
+  "[": "01110 01000 01000 01000 01000 01000 01110", "]": "01110 00010 00010 00010 00010 00010 01110", "/": "00001 00001 00010 00100 01000 10000 10000",
+  ":": "00000 01100 01100 00000 01100 01100 00000", "'": "00100 00100 01000 00000 00000 00000 00000", "_": "00000 00000 00000 00000 00000 00000 11111",
+  "(": "00010 00100 01000 01000 01000 00100 00010", ")": "01000 00100 00010 00010 00010 00100 01000", "?": "01110 10001 00001 00010 00100 00000 00100",
+  " ": "00000 00000 00000 00000 00000 00000 00000",
 };
-function text(img: Img, value: string, x: number, y: number, scale: number, color: number[]) {
-  let at = x;
-  for (const ch of value) {
-    const g = GLYPHS[ch];
-    if (g) for (let k = 0; k < 15; k++) if (g[k] === "1") {
-      const gx = at + (k % 3) * scale, gy = y + Math.floor(k / 3) * scale;
-      fill(img, gx + 1, gy + 1, scale, scale, [0, 0, 0, 255]);
-      fill(img, gx, gy, scale, scale, color);
-    }
-    at += 4 * scale;
+const clean = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9.,\-\[\]/:'_() ]/g, "?");
+const textWidth = (value: string, scale: number) => (value.length ? value.length * 6 * scale - scale : 0);
+/** Corta o texto com "..." para caber na largura. */
+function fit(value: string, max: number, scale: number) {
+  let out = clean(value);
+  if (textWidth(out, scale) <= max) return out;
+  while (out.length > 1 && textWidth(`${out}...`, scale) > max) out = out.slice(0, -1);
+  return `${out}...`;
+}
+function text(img: Img, value: string, x: number, y: number, scale: number, color: Rgb, align: "left" | "center" | "right" = "left") {
+  const raw = clean(value);
+  let at = align === "left" ? x : align === "center" ? x - Math.round(textWidth(raw, scale) / 2) : x - textWidth(raw, scale);
+  for (const ch of raw) {
+    const rows = (FONT[ch] ?? FONT["?"]!).split(" ");
+    rows.forEach((row, ry) => [...row].forEach((bit, rx) => { if (bit === "1") fill(img, at + rx * scale, y + ry * scale, scale, scale, color); }));
+    at += 6 * scale;
   }
 }
-const textWidth = (value: string, scale: number) => value.length * 4 * scale - scale;
 
-const SKULL = ["..11111..", ".1111111.", "11.111.11", "11.111.11", "1111111111".slice(0, 9), ".1111111.", "..1.1.1..", "..1.1.1.."];
-/** Caveira de "morto" num círculo cinza, no meio da imagem. */
+const SKULL = ["..11111..", ".1111111.", "11.111.11", "11.111.11", "111111111", ".1111111.", "..1.1.1..", "..1.1.1.."];
+/** Caveira de "morto" num círculo, no meio da imagem. */
 function skull(img: Img, cx: number, cy: number) {
-  const radius = 28;
-  for (let j = -radius; j <= radius; j++) for (let i = -radius; i <= radius; i++) if (i * i + j * j <= radius * radius) fill(img, cx + i, cy + j, 1, 1, [110, 108, 106]);
-  const scale = 4;
-  SKULL.forEach((row, y) => [...row].forEach((c, x) => { if (c === "1") fill(img, cx - Math.round((9 * scale) / 2) + x * scale, cy - Math.round((8 * scale) / 2) + y * scale, scale, scale, [250, 250, 250]); }));
+  const radius = 24;
+  for (let j = -radius; j <= radius; j++) for (let i = -radius; i <= radius; i++) if (i * i + j * j <= radius * radius) fill(img, cx + i, cy + j, 1, 1, [48, 52, 66]);
+  const scale = 3;
+  SKULL.forEach((row, y) => [...row].forEach((c, x) => { if (c === "1") fill(img, cx - Math.round((9 * scale) / 2) + x * scale, cy - Math.round((8 * scale) / 2) + y * scale, scale, scale, FG); }));
 }
 
-const CELL = 64, GAP = 4, STEP = CELL + GAP, PAD = 12;
-// Mesma arrumação do jogo: 3 colunas por lado.
+const CELL = 64, GAP = 4, STEP = CELL + GAP;
+// Mesma arrumação do jogo e da página: 3 colunas por lado.
 const LAYOUT: (keyof Gear | null)[][] = [["bag", "helmet", "cape"], ["weapon", "armor", "offhand"], ["food", "boots", "potion"], [null, "mount", null]];
 const MAX_INVENTORY = 32;
 
@@ -154,50 +180,65 @@ async function loadIcon(code: string): Promise<Img | null> {
   } catch { return null; }
 }
 
+const tagOf = (side: { alliance: string; guild: string }) => [side.alliance && `[${side.alliance}]`, side.guild].filter(Boolean).join(" ") || "sem guilda";
+
+/** Imagem da kill com o visual da página de kill do site. */
 export async function renderKillImage(kill: KillDetail): Promise<Uint8Array> {
   const inventory = kill.inventory.slice(0, MAX_INVENTORY);
   const invRows = Math.ceil(inventory.length / 8);
-  const panel = 3 * STEP, centre = 8 * STEP - 2 * panel;
-  const width = PAD * 2 + 8 * STEP - GAP;
-  const top = 4 * STEP - GAP;
-  const height = PAD * 2 + top + (invRows ? PAD + invRows * STEP - GAP : 0);
+  const COL = 3 * STEP - GAP + 16, CONTENT = 580, X0 = 24, Y0 = 24;
+  const width = CONTENT + X0 * 2;
+  const HEADER = 74, BOX_H = 4 * STEP - GAP + 16;
+  const invTop = Y0 + HEADER + BOX_H + 38;
+  const height = (invRows ? invTop + invRows * STEP - GAP : Y0 + HEADER + BOX_H) + 28;
   const img: Img = { w: width, h: height, px: new Uint8ClampedArray(width * height * 4) };
-  fill(img, 0, 0, width, height, [212, 185, 150]);
+  fill(img, 0, 0, width, height, BG);
+  box(img, 6, 6, width - 12, height - 12, CARD, BORDER);
 
   // Ícones únicos (limite baixo para ficar dentro do número de chamadas permitido por requisição).
   const codes = new Set<string>();
   for (const g of [kill.killer.gear, kill.victim.gear]) for (const row of LAYOUT) for (const slot of row) if (slot && g[slot]) codes.add(g[slot]!);
   for (const item of inventory) codes.add(item.type);
-  const wanted = [...codes].slice(0, 44);
-  const icons = new Map<string, Img | null>(await Promise.all(wanted.map(async (code) => [code, await loadIcon(code)] as const)));
+  const icons = new Map<string, Img | null>(await Promise.all([...codes].slice(0, 44).map(async (code) => [code, await loadIcon(code)] as const)));
 
   const cell = (x: number, y: number, code?: string, count = 0) => {
-    fill(img, x, y, CELL, CELL, [30, 38, 50]);
+    box(img, x - 1, y - 1, CELL + 2, CELL + 2, BG, BORDER);
     const icon = code ? icons.get(code) : null;
-    if (code && !icon) fill(img, x + 6, y + 6, CELL - 12, CELL - 12, [70, 78, 92]);
+    if (code && !icon) fill(img, x + 8, y + 8, CELL - 16, CELL - 16, BORDER);
     if (icon) blit(img, icon, x, y, CELL);
-    if (count > 1) { const label = String(count); text(img, label, x + CELL - textWidth(label, 2) - 3, y + CELL - 13, 2, [255, 255, 255]); }
+    if (count > 1) { const label = String(count); fill(img, x + CELL - textWidth(label, 2) - 6, y + CELL - 17, textWidth(label, 2) + 6, 17, [0, 0, 0, 255]); text(img, label, x + CELL - 3, y + CELL - 15, 2, FG, "right"); }
   };
-  const side = (gear: Gear, x0: number) => LAYOUT.forEach((row, r) => row.forEach((slot, c) => {
-    const x = x0 + c * STEP, y = PAD + r * STEP;
-    if (!slot) { fill(img, x, y, CELL, CELL, [196, 166, 128]); return; }
-    cell(x, y, gear[slot]);
-  }));
-  side(kill.killer.gear, PAD);
-  side(kill.victim.gear, PAD + panel + centre);
+  const fighter = (side: typeof kill.killer, boxX: number, align: "left" | "right") => {
+    const edge = align === "left" ? boxX : boxX + COL;
+    text(img, fit(side.name, COL, 2), edge, Y0 + 4, 2, PRIMARY, align);
+    // Tag da aliança + guilda se couber em letra legível; senão, só a guilda (cortada).
+    const full = tagOf(side);
+    text(img, textWidth(clean(full), 2) <= COL ? full : fit(side.guild || full, COL, 2), edge, Y0 + 28, 2, MUTED, align);
+    text(img, side.ip > 0 ? `IP ${side.ip}` : "IP ?", edge, Y0 + 50, 2, MUTED, align);
+    const top = Y0 + HEADER;
+    box(img, boxX, top, COL, BOX_H, [14, 17, 27], BORDER);
+    LAYOUT.forEach((row, r) => row.forEach((slot, c) => { if (slot) cell(boxX + 8 + c * STEP, top + 8 + r * STEP, side.gear[slot]); }));
+  };
+  const leftX = X0, rightX = X0 + CONTENT - COL, mid = X0 + Math.round(CONTENT / 2);
+  fighter(kill.killer, leftX, "left");
+  fighter(kill.victim, rightX, "right");
 
-  // Centro (como no killboard do jogo): fama, caveira, data e hora.
-  const mid = PAD + panel + Math.round((centre - GAP) / 2);
-  const centred = (value: string, y: number, scale: number, color: number[]) => text(img, value, mid - Math.round(textWidth(value, scale) / 2), y, scale, color);
+  // Centro, como na página: "matou", fama, caveira, data e hora.
+  const top = Y0 + HEADER;
   const fame = kill.fame.toLocaleString("en-US");
-  centred(fame, PAD + 34, fame.length > 9 ? 2 : 3, [122, 62, 14]);
-  skull(img, mid, PAD + Math.round(top / 2) + 6);
+  text(img, "MATOU", mid, top + 10, 2, MUTED, "center");
+  text(img, fame, mid, top + 40, textWidth(fame, 3) <= 130 ? 3 : 2, AMBER, "center");
+  text(img, "FAMA", mid, top + 68, 2, MUTED, "center");
+  skull(img, mid, top + 140);
   const when = gameDate(kill.time);
   const zone = { timeZone: "America/Sao_Paulo" } as const;
-  centred(when.toLocaleDateString("pt-BR", { ...zone, day: "2-digit", month: "2-digit", year: "numeric" }), PAD + top - 62, 2, [90, 62, 30]);
-  centred(when.toLocaleTimeString("pt-BR", { ...zone, hour: "2-digit", minute: "2-digit", hour12: false }), PAD + top - 44, 2, [90, 62, 30]);
+  text(img, when.toLocaleDateString("pt-BR", { ...zone, day: "2-digit", month: "2-digit", year: "numeric" }), mid, top + BOX_H - 62, 2, MUTED, "center");
+  text(img, when.toLocaleTimeString("pt-BR", { ...zone, hour: "2-digit", minute: "2-digit", hour12: false }), mid, top + BOX_H - 42, 2, MUTED, "center");
 
-  const invTop = PAD + top + PAD;
-  inventory.forEach((item, i) => cell(PAD + (i % 8) * STEP, invTop + Math.floor(i / 8) * STEP, item.type, item.count));
+  if (invRows) {
+    text(img, `INVENTARIO DE ${kill.victim.name}`.slice(0, 40), X0, invTop - 26, 2, MUTED);
+    const gridX = X0 + Math.round((CONTENT - (8 * STEP - GAP)) / 2);
+    inventory.forEach((item, i) => cell(gridX + (i % 8) * STEP, invTop + Math.floor(i / 8) * STEP, item.type, item.count));
+  }
   return encodePng(img);
 }
