@@ -71,7 +71,7 @@ export function BuildSlotPicker({ slot, current, onClose, onChange }: { slot: Sl
             {categories.map((c) => <Button key={c} type="button" size="sm" variant={category === c ? "secondary" : "ghost"} onClick={() => setCategory(c)}>{c}</Button>)}
           </div>
         )}
-        <div className="grid max-h-[40vh] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+        <div className="grid max-h-[32dvh] grid-cols-2 gap-2 overflow-y-auto sm:max-h-[40vh] sm:grid-cols-3">
           {loading && <p className="col-span-full text-sm text-muted-foreground">Carregando…</p>}
           {!loading && items.length === 0 && <p className="col-span-full text-sm text-muted-foreground">Nenhum item cadastrado nesse catálogo ainda. Um administrador pode adicionar em Administração.</p>}
           {shown.map((item) => (
@@ -79,7 +79,7 @@ export function BuildSlotPicker({ slot, current, onClose, onChange }: { slot: Sl
               className={`flex items-center gap-2 rounded-md border bg-card p-2 text-left hover:border-primary ${chosen?.key === item.key ? "border-primary ring-2 ring-primary" : "border-border"}`}>
               <ItemSlot code={composeGearCode(item.base, item.iconTier, 0)} size={52} showTier={false} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{item.name}</span>
+                <span className="line-clamp-2 break-words text-sm font-medium leading-tight">{item.name}</span>
                 {item.category && <span className="block truncate text-xs text-muted-foreground">{item.category}</span>}
               </span>
             </button>
@@ -95,11 +95,12 @@ export function BuildSlotPicker({ slot, current, onClose, onChange }: { slot: Sl
             </div>}
           </div>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="ghost" className="text-destructive" disabled={!current} onClick={() => { onChange(null); onClose(); }}>Esvaziar slot</Button>
-          <div className="flex items-center gap-2">
-            {code && <span className="text-sm text-gold">{chosen?.name} {tierLabel(tier, enchant)}</span>}
-            <Button type="button" variant="gold" disabled={!code} onClick={() => { if (code) { onChange(code); onClose(); } }}>Usar item</Button>
+        {/* No celular a barra de ações fica fixa no rodapé da janela: o nome do item vai numa linha própria e os botões nunca saem da tela. */}
+        <div className="sticky bottom-0 -mx-4 -mb-4 space-y-2 border-t border-border bg-background px-4 pb-4 pt-3 sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:p-0">
+          {code && <p className="break-words text-sm font-semibold text-primary">{chosen?.name} {tierLabel(tier, enchant)}</p>}
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" className="flex-1 text-destructive sm:flex-none" disabled={!current} onClick={() => { onChange(null); onClose(); }}>Esvaziar slot</Button>
+            <Button type="button" variant="gold" className="flex-1 sm:ml-auto sm:flex-none" disabled={!code} onClick={() => { if (code) { onChange(code); onClose(); } }}>Usar item</Button>
           </div>
         </div>
       </DialogContent>
