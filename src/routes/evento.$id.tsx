@@ -101,7 +101,7 @@ function EventPage() {
   }, [id, qc]);
 
   if (isLoading) return <p className="mx-auto max-w-5xl px-4 py-10 text-muted-foreground">Carregando...</p>;
-  if (!ev) return <p className="mx-auto max-w-5xl px-4 py-10">Conteúdo não encontrado. <Link to="/" className="text-primary">Voltar</Link></p>;
+  if (!ev) return <p className="mx-auto max-w-5xl px-4 py-10">Conteúdo não encontrado. <Link to="/conteudos" className="text-primary">Voltar</Link></p>;
 
   const weapons = [...ev.event_weapons].sort((a, b) => a.position - b.position);
   const full = ev.signups.length >= ev.max_players;
@@ -125,7 +125,7 @@ function EventPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <Link to="/" className="text-sm text-muted-foreground hover:text-primary">← Conteúdos</Link>
+      <Link to="/conteudos" className="text-sm text-muted-foreground hover:text-primary">← Conteúdos</Link>
       <div className="flex flex-wrap items-center gap-2 mt-4">
         <p className="text-sm font-semibold uppercase tracking-widest text-primary">{formatDate(ev.starts_at)}</p>
         {ev.mode && <Badge variant="outline" className="border-primary/50 text-primary">{ev.mode}</Badge>}

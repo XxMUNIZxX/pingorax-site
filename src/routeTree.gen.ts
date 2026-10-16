@@ -15,6 +15,7 @@ import { Route as CriarRouteImport } from './routes/criar'
 import { Route as BuildsRouteImport } from './routes/builds'
 import { Route as LutasRouteImport } from './routes/lutas'
 import { Route as KillsRouteImport } from './routes/kills'
+import { Route as ConteudosRouteImport } from './routes/conteudos'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
 import { Route as ApiPublicKillImageRouteImport } from './routes/api/public/kill-image'
@@ -34,6 +35,11 @@ const AdminRoute = AdminRouteImport.update({
 const BuildsRoute = BuildsRouteImport.update({
   id: '/builds',
   path: '/builds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConteudosRoute = ConteudosRouteImport.update({
+  id: '/conteudos',
+  path: '/conteudos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KillsRoute = KillsRouteImport.update({
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/criar': typeof CriarRoute
   '/lutas': typeof LutasRoute
   '/kills': typeof KillsRoute
+  '/conteudos': typeof ConteudosRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/criar': typeof CriarRoute
   '/lutas': typeof LutasRoute
   '/kills': typeof KillsRoute
+  '/conteudos': typeof ConteudosRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/criar': typeof CriarRoute
   '/lutas': typeof LutasRoute
   '/kills': typeof KillsRoute
+  '/conteudos': typeof ConteudosRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -120,9 +129,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
   id:
     | '__root__'
     | '/'
@@ -130,7 +139,7 @@ export interface FileRouteTypes {
     | '/builds'
     | '/criar'
     | '/lutas'
-    | '/kills'
+    | '/kills' | '/conteudos'
     | '/evento/$id'
     | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/battle-image'
   fileRoutesById: FileRoutesById
@@ -142,6 +151,7 @@ export interface RootRouteChildren {
   CriarRoute: typeof CriarRoute
   LutasRoute: typeof LutasRoute
   KillsRoute: typeof KillsRoute
+  ConteudosRoute: typeof ConteudosRoute
   EventoIdRoute: typeof EventoIdRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
@@ -170,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/builds'
       fullPath: '/builds'
       preLoaderRoute: typeof BuildsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conteudos': {
+      id: '/conteudos'
+      path: '/conteudos'
+      fullPath: '/conteudos'
+      preLoaderRoute: typeof ConteudosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kills': {
@@ -238,6 +255,7 @@ const rootRouteChildren: RootRouteChildren = {
   CriarRoute: CriarRoute,
   LutasRoute: LutasRoute,
   KillsRoute: KillsRoute,
+  ConteudosRoute: ConteudosRoute,
   EventoIdRoute: EventoIdRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
