@@ -53,7 +53,7 @@ export function DiscordPanel({ isAdmin }: { isAdmin: boolean }) {
   async function registerCommand() {
     try {
       const result = await register();
-      if (result.ok) toast.success("Comando /pingorax conectar registrado no Discord.");
+      if (result.ok) toast.success("Comandos registrados no Discord (/pingorax conectar, /luta e /kill).");
       else toast.error(result.error);
     } catch { toast.error("Não foi possível registrar o comando."); }
   }
@@ -99,8 +99,8 @@ export function DiscordPanel({ isAdmin }: { isAdmin: boolean }) {
         </ul>
         {isAdmin && (
           <div className="border-t border-border pt-3">
-            <p className="text-xs text-muted-foreground">Administrador: registre o comando uma vez (precisa da variável <code>DISCORD_APP_ID</code>) e deixe o bot público no Discord Developer Portal.</p>
-            <Button className="mt-2" size="sm" variant="outline" onClick={registerCommand}>Registrar comando /pingorax</Button>
+            <p className="text-xs text-muted-foreground">Administrador: registre os comandos (<code>/pingorax conectar</code>, <code>/luta</code> e <code>/kill</code>; precisa da variável <code>DISCORD_APP_ID</code>) e deixe o bot público no Discord Developer Portal. Clique de novo sempre que o site ganhar comandos novos.</p>
+            <Button className="mt-2" size="sm" variant="outline" onClick={registerCommand}>Registrar comandos do bot</Button>
             <p className="mt-3 text-xs text-muted-foreground">Ícones das armas no card: cria de uma vez o emoji de todas as armas do catálogo (leva alguns minutos; pode deixar a tela aberta).</p>
             <Button className="mt-2" size="sm" variant="outline" disabled={!!syncing} onClick={createAllEmojis}>{syncing ?? "Criar ícones de todas as armas"}</Button>
           </div>

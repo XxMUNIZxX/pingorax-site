@@ -139,3 +139,41 @@ export const syncWeaponEmojis = createServerFn({ method: "POST" })
       return { ok: false, error: error instanceof Error && error.message.startsWith("Faltam") ? error.message : "O Discord recusou. Confira o DISCORD_APP_ID e o token do bot." };
     }
   });
+
+const analysisInput = z.object({
+  kind: z.enum(["battle", "kill"]), server: z.enum(["americas", "europe", "asia"]), id: z.number().int().positive(), channelRowId: z.string().uuid().optional(),
+});
+
+/** Manda a análise de uma luta ou uma kill do Albion para um canal do Discord (canal conectado pelo criador, ou o padrão do site para admin). */
+export const postAnalysisToDiscord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((value: unknown) => analysisInput.parse(value))
+  .handler(async ({ data, context }): Promise<Result> => {
+    const { discordConfig, sendRawMessage } = await import("@/lib/discord.server");
+    const cfg = discordConfig();
+    if (!cfg.botToken) return { ok: false, error: "O Discord ainda não foi configurado no servidor (DISCORD_BOT_TOKEN)." };
+    let channelId: string | undefined;
+    if (data.channelRowId) {
+      const { data: row } = await context.supabase.from("discord_channels").select("channel_id").eq("id", data.channelRowId).maybeSingle();
+      if (!row) return { ok: false, error: "Esse canal não está conectado à sua conta." };
+      channelId = row.channel_id;
+    } else {
+      const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+      if (!isAdmin) return { ok: false, error: "Conecte o canal do seu servidor para enviar." };
+      channelId = cfg.channelId;
+    }
+    if (!channelId) return { ok: false, error: "O canal padrão do Discord não está configurado (DISCORD_CHANNEL_ID)." };
+    let message: object;
+    try {
+      const { battleMessage, killMessage } = await import("@/lib/albion-discord.server");
+      message = data.kind === "battle" ? await battleMessage(data.server, data.id) : await killMessage(data.server, data.id);
+    } catch (error) {
+      console.error("[discord] analise", error);
+      return { ok: false, error: "Não consegui carregar isso do Albion agora. Tente de novo em instantes." };
+    }
+    try { await sendRawMessage(channelId, cfg, message); return { ok: true }; }
+    catch (error) {
+      console.error("[discord] enviar analise", error);
+      return { ok: false, error: "Não foi possível enviar para esse canal. Confira se o bot está no servidor e pode ver e enviar mensagens nele." };
+    }
+  });

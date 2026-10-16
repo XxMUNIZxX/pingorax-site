@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import type { BattleDetail, BattleKills, BattleListItem } from "@/lib/albion-types";
+import type { BattleDetail, BattleKills, BattleListItem, KillDetail, KillSummary, PlayerHit, PlayerProfile } from "@/lib/albion-types";
 
 const server = z.enum(["americas", "europe", "asia"]);
 
@@ -43,4 +43,39 @@ export const fetchBattleKills = createServerFn({ method: "GET" })
       console.error("[albion] kills", error);
       return { ok: false, error: "Não consegui carregar as kills agora." };
     }
+  });
+
+type Fail = { ok: false; error: string };
+const failure = (label: string, error: unknown, message: string): Fail => { console.error(`[albion] ${label}`, error); return { ok: false, error: message }; };
+
+/** Kills mais recentes (feed). */
+export const fetchRecentKills = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ server }).parse(value))
+  .handler(async ({ data }): Promise<{ ok: true; kills: KillSummary[] } | Fail> => {
+    try { const { recentKills } = await import("@/lib/albion-kills.server"); return { ok: true, kills: await recentKills(data.server) }; }
+    catch (error) { return failure("recent", error, "Não consegui falar com a API do Albion agora. Tente de novo em instantes."); }
+  });
+
+/** Busca de jogadores pelo nome. */
+export const fetchPlayerSearch = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ server, query: z.string().trim().min(2).max(40) }).parse(value))
+  .handler(async ({ data }): Promise<{ ok: true; players: PlayerHit[] } | Fail> => {
+    try { const { searchPlayers } = await import("@/lib/albion-kills.server"); return { ok: true, players: await searchPlayers(data.server, data.query) }; }
+    catch (error) { return failure("search", error, "A busca não respondeu agora. Tente de novo."); }
+  });
+
+/** Perfil de um jogador com as últimas kills e mortes. */
+export const fetchPlayer = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ server, id: z.string().regex(/^[A-Za-z0-9_-]{10,40}$/) }).parse(value))
+  .handler(async ({ data }): Promise<{ ok: true; player: PlayerProfile } | Fail> => {
+    try { const { playerProfile } = await import("@/lib/albion-kills.server"); return { ok: true, player: await playerProfile(data.server, data.id) }; }
+    catch (error) { return failure("player", error, "Não consegui carregar esse jogador agora."); }
+  });
+
+/** Uma kill completa (equipamento, inventário, participantes). */
+export const fetchKill = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ server, id: z.number().int().positive() }).parse(value))
+  .handler(async ({ data }): Promise<{ ok: true; kill: KillDetail } | Fail> => {
+    try { const { killDetail } = await import("@/lib/albion-kills.server"); return { ok: true, kill: await killDetail(data.server, data.id) }; }
+    catch (error) { return failure("kill", error, "Não consegui carregar essa kill agora. Confira o número e tente de novo."); }
   });

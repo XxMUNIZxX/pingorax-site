@@ -10,7 +10,7 @@ export type Gear = Partial<Record<"weapon" | "offhand" | "helmet" | "armor" | "b
 
 export type BattleListItem = { id: number; startTime: string; players: number; kills: number; fame: number; groups: string[] };
 
-export type KillSide = { name: string; guild: string; alliance: string; allianceTag: string; ip: number; gear: Gear };
+export type KillSide = { id?: string; name: string; guild: string; alliance: string; allianceTag: string; ip: number; gear: Gear };
 export type BattleKill = { id: number; time: string; fame: number; killer: KillSide; victim: KillSide };
 
 export type BattlePlayer = { name: string; guild: string; alliance: string; kills: number; deaths: number; fame: number; ip: number; gear: Gear };
@@ -22,6 +22,23 @@ export type BattleDetail = {
 };
 
 export type BattleKills = { kills: BattleKill[]; seen: Record<string, { ip: number; gear: Gear }>; truncated: boolean };
+
+// ---- Kills (killboard) ----
+export type KillSummary = { id: number; time: string; fame: number; killer: KillSide; victim: KillSide; assists: number; battleId: number };
+export type KillParticipant = { name: string; id: string; guild: string; alliance: string; ip: number; gear: Gear; damage: number; heal: number };
+export type KillDetail = KillSummary & { inventory: { type: string; count: number }[]; participants: KillParticipant[]; location: string };
+export type PlayerHit = { id: string; name: string; guild: string; alliance: string; killFame: number };
+export type PlayerEvent = KillSummary & { kind: "kill" | "death" };
+export type PlayerProfile = { id: string; name: string; guild: string; alliance: string; killFame: number; deathFame: number; fameRatio: number; events: PlayerEvent[] };
+
+/** "há 5 h", "há 12 min"... */
+export function timeAgo(iso: string, now = Date.now()) {
+  const minutes = Math.max(0, Math.round((now - gameDate(iso).getTime()) / 60000));
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `há ${minutes} min`;
+  if (minutes < 60 * 24) return `há ${Math.round(minutes / 60)} h`;
+  return `há ${Math.round(minutes / 1440)} d`;
+}
 
 /** "1.4M", "339.6k"... */
 export function shortNumber(value: number) {
