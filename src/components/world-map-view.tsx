@@ -54,6 +54,12 @@ function ZonePicker({ label, value, onChange, onRemove }: { label: string; value
   );
 }
 
+/**
+ * Fundo do mundo (512x1024 px). Ajuste das posições do grafo para pixels: px = 0.73·x + 254, py = 0.73·(−y) + 506.
+ * Em unidades do mapa, a imagem começa em (−254/0.73, −506/0.73) e mede 512/0.73 × 1024/0.73.
+ */
+const WORLD_IMG = { href: "/albion-world-map.webp", x: -254 / 0.73, y: -506 / 0.73, w: 512 / 0.73, h: 1024 / 0.73 };
+
 const BOUNDS = (() => {
   const xs = ZONES.map((z) => z.x), ys = ZONES.map((z) => -z.y);
   const pad = 20;
@@ -120,7 +126,9 @@ function MapCanvas({ path, stops, step, onPick, onReset }: { path: Zone[]; stops
         }}
         onPointerUp={() => { drag.current = null; }}
       >
-        <g stroke="currentColor" className="text-border" strokeWidth={0.5 * Math.max(scale, 0.3)} opacity={path.length ? 0.45 : 0.8}>
+        <image href={WORLD_IMG.href} x={WORLD_IMG.x} y={WORLD_IMG.y} width={WORLD_IMG.w} height={WORLD_IMG.h} preserveAspectRatio="none" opacity={0.95} />
+        <rect x={WORLD_IMG.x} y={WORLD_IMG.y} width={WORLD_IMG.w} height={WORLD_IMG.h} fill="#0a0d15" opacity={path.length ? 0.35 : 0.12} pointerEvents="none" />
+        <g stroke="#ffffff" strokeWidth={0.6 * Math.max(scale, 0.3)} opacity={path.length ? 0.22 : 0.5}>
           {EDGES.map(([a, b], i) => <line key={i} x1={ZONES[a]!.x} y1={-ZONES[a]!.y} x2={ZONES[b]!.x} y2={-ZONES[b]!.y} />)}
         </g>
         {path.length > 1 && (
@@ -132,7 +140,7 @@ function MapCanvas({ path, stops, step, onPick, onReset }: { path: Zone[]; stops
           const ring = z.id === originId ? "#34d399" : z.id === destId ? "#fbbf24" : isStop ? "#fff" : "none";
           const r = (isStop ? 4.8 : onRoute.has(z.id) ? 3.2 : big ? 3 : 2) * Math.max(scale, 0.35);
           return (
-            <circle key={z.id} cx={z.x} cy={-z.y} r={r} fill={KIND_COLOR[z.kind]} stroke={ring} strokeWidth={(isStop ? 1.8 : 1) * Math.max(scale, 0.35)}
+            <circle key={z.id} cx={z.x} cy={-z.y} r={r} fill={KIND_COLOR[z.kind]} stroke={isStop ? ring : "#0a0d15"} strokeWidth={(isStop ? 1.8 : 0.6) * Math.max(scale, 0.35)}
               onPointerEnter={() => setHover(z)} onPointerLeave={() => setHover((h) => (h?.id === z.id ? null : h))}
               className="cursor-pointer" onClick={() => { if (!moved.current) onPick(z); }}>
               <title>{z.name} — {KIND_LABEL[z.kind]}{z.tier ? ` T${z.tier}` : ""}</title>
