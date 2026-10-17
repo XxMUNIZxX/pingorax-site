@@ -9,7 +9,7 @@ const COLOR = 0x5fd0e8;
 type Row = {
   id: string; title: string; description: string | null; starts_at: string; max_players: number;
   mode: string | null; caller_name: string | null; content_type: string | null;
-  event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null }[];
+  event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null; icon_path?: string | null }[];
   signups: { id: string; nick: string; weapon_id: string; created_at: string }[];
 };
 
@@ -28,7 +28,7 @@ export function anonClient() {
 
 export async function loadEvent(id: string): Promise<Row | null> {
   const { data, error } = await anonClient().from("events")
-    .select("id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position,icon_code),signups(id,nick,weapon_id,created_at)")
+    .select("id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position,icon_code,icon_path),signups(id,nick,weapon_id,created_at)")
     .eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as Row | null) ?? null;
@@ -57,12 +57,57 @@ async function listAppEmojis(appId: string, token: string, fresh = false) {
   return byName;
 }
 
+function toDataUrl(bytes: Uint8Array) {
+  let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return `data:image/png;base64,${btoa(binary)}`;
+}
+async function postEmoji(appId: string, token: string, name: string, bytes: Uint8Array): Promise<AppEmoji> {
+  return discord<AppEmoji>(`/applications/${appId}/emojis`, token, { method: "POST", body: JSON.stringify({ name, image: toDataUrl(bytes) }) });
+}
 async function uploadEmoji(appId: string, token: string, code: string, name: string): Promise<AppEmoji | null> {
   const image = await fetch(itemIconUrl(code, 64));
   if (!image.ok) return null;
-  const bytes = new Uint8Array(await image.arrayBuffer());
-  let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return discord<AppEmoji>(`/applications/${appId}/emojis`, token, { method: "POST", body: JSON.stringify({ name, image: `data:image/png;base64,${btoa(binary)}` }) });
+  return postEmoji(appId, token, name, new Uint8Array(await image.arrayBuffer()));
+}
+
+/** Reduz um PNG para caber num emoji (o Discord aceita até 256 KB; 128 px é o tamanho recomendado). */
+async function shrinkPng(bytes: Uint8Array, size = 128): Promise<Uint8Array> {
+  const { decodePng, encodePng } = await import("@/lib/kill-image.server");
+  const img = await decodePng(bytes);
+  if (img.w <= size && img.h <= size && bytes.length <= 256 * 1024) return bytes;
+  const scale = Math.min(1, size / Math.max(img.w, img.h));
+  const w = Math.max(1, Math.round(img.w * scale)), h = Math.max(1, Math.round(img.h * scale));
+  const px = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    // Média da área de origem (com alfa), para a imagem não ficar serrilhada.
+    const x0 = Math.floor((x * img.w) / w), x1 = Math.max(x0 + 1, Math.floor(((x + 1) * img.w) / w));
+    const y0 = Math.floor((y * img.h) / h), y1 = Math.max(y0 + 1, Math.floor(((y + 1) * img.h) / h));
+    let r = 0, g = 0, b = 0, a = 0, n = 0;
+    for (let j = y0; j < y1; j++) for (let i = x0; i < x1; i++) { const o = (j * img.w + i) * 4, al = img.px[o + 3]!; r += img.px[o]! * al; g += img.px[o + 1]! * al; b += img.px[o + 2]! * al; a += al; n++; }
+    const d = (y * w + x) * 4;
+    if (a > 0) { px[d] = r / a; px[d + 1] = g / a; px[d + 2] = b / a; }
+    px[d + 3] = a / n;
+  }
+  return encodePng({ w, h, px });
+}
+
+type IconSource = { key: string; name: string; load: () => Promise<Uint8Array | null> };
+/** De onde vem o ícone de uma arma: imagem enviada pelo criador (storage) ou item do catálogo do Albion. */
+function iconSourceOf(w: { icon_code?: string | null; icon_path?: string | null }): IconSource | null {
+  if (w.icon_path) {
+    const path = w.icon_path;
+    const id = (path.split("/").pop() ?? path).replace(/\.png$/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 29);
+    return { key: `path:${path}`, name: `wc_${id}`, load: async () => {
+      const { data, error } = await anonClient().storage.from("weapon-icons").download(path);
+      if (error || !data) { console.error("[discord] ícone enviado", path, error?.message); return null; }
+      return shrinkPng(new Uint8Array(await data.arrayBuffer()));
+    } };
+  }
+  if (w.icon_code) {
+    const code = w.icon_code;
+    return { key: code, name: emojiNameOf(code), load: async () => { const r = await fetch(itemIconUrl(code, 64)); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; } };
+  }
+  return null;
 }
 
 /** Emojis (ícone) das armas do conteúdo. `upload` cria os que faltam; nas interações só lê (rápido). Nunca lança erro. */
@@ -70,19 +115,22 @@ export async function weaponEmojis(event: Row, cfg: DiscordConfig, upload: boole
   const out: EmojiMap = new Map();
   if (!cfg.appId || !cfg.botToken) return out;
   try {
-    const codes = [...new Set(event.event_weapons.map((w) => w.icon_code).filter((c): c is string => !!c))];
-    if (!codes.length) return out;
+    const sources = new Map<string, IconSource>();
+    for (const w of event.event_weapons) { const src = iconSourceOf(w); if (src) sources.set(src.key, src); }
+    if (!sources.size) return out;
     const byName = await listAppEmojis(cfg.appId, cfg.botToken);
     let created = 0;
-    for (const code of codes) {
-      const name = emojiNameOf(code);
-      let emoji = byName.get(name);
+    for (const src of sources.values()) {
+      let emoji = byName.get(src.name);
       if (!emoji && upload && created < MAX_NEW_EMOJIS_PER_CALL) {
         created++;
-        try { emoji = (await uploadEmoji(cfg.appId, cfg.botToken, code, name)) ?? undefined; } catch (error) { console.error("[discord] emoji", code, error); }
-        if (emoji) byName.set(name, emoji);
+        try {
+          const bytes = await src.load();
+          if (bytes) emoji = await postEmoji(cfg.appId, cfg.botToken, src.name, bytes);
+        } catch (error) { console.error("[discord] emoji", src.key, error); }
+        if (emoji) byName.set(src.name, emoji);
       }
-      if (emoji) out.set(code, emoji);
+      if (emoji) out.set(src.key, emoji);
     }
   } catch (error) { console.error("[discord] emojis", error); }
   return out;
@@ -90,7 +138,7 @@ export async function weaponEmojis(event: Row, cfg: DiscordConfig, upload: boole
 
 /** Mensagem do canal: card do conteúdo + um botão por arma + botão que abre o site. */
 export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
-  const emojiOf = (w: { icon_code?: string | null }) => (w.icon_code ? emojis.get(w.icon_code) : undefined);
+  const emojiOf = (w: { icon_code?: string | null; icon_path?: string | null }) => { const key = iconSourceOf(w)?.key; return key ? emojis.get(key) : undefined; };
   const weapons = [...event.event_weapons].sort((a, b) => a.position - b.position);
   const total = event.signups.length;
   const full = total >= event.max_players;
