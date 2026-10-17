@@ -61,9 +61,19 @@ const BOUNDS = (() => {
   return { x, y, w: Math.max(...xs) + pad - x, h: Math.max(...ys) + pad - y };
 })();
 
-function MapCanvas({ path, stops, onPick }: { path: Zone[]; stops: string[]; onPick: (z: Zone) => void }) {
+const STEP_HINT = [
+  "Clique numa zona para definir a ORIGEM",
+  "Agora clique na zona de DESTINO",
+  "Rota pronta. Clique em outra zona para começar uma nova",
+];
+
+function MapCanvas({ path, stops, step, onPick, onReset }: { path: Zone[]; stops: string[]; step: number; onPick: (z: Zone) => void; onReset: () => void }) {
+  const originId = stops[0];
+  const destId = stops.length > 1 ? stops[stops.length - 1] : undefined;
+  const [hover, setHover] = useState<Zone | null>(null);
   const [view, setView] = useState(BOUNDS);
   const drag = useRef<{ px: number; py: number; moved: boolean } | null>(null);
+  const moved = useRef(false);
   const svg = useRef<SVGSVGElement>(null);
   const onRoute = useMemo(() => new Set(path.map((z) => z.id)), [path]);
   const scale = view.w / BOUNDS.w;
@@ -84,18 +94,29 @@ function MapCanvas({ path, stops, onPick }: { path: Zone[]; stops: string[]; onP
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary/40 px-3 py-2 text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{step + 1 > 2 ? "✓" : step + 1}</span>
+          <span className="truncate font-medium">{STEP_HINT[step]}</span>
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 text-xs text-muted-foreground sm:flex">
+          {originId && <span className="flex items-center gap-1"><span className="size-2.5 rounded-full ring-2 ring-emerald-400" />{zoneById(originId)?.name}</span>}
+          {destId && <span className="flex items-center gap-1"><span className="size-2.5 rounded-full ring-2 ring-amber-400" />{zoneById(destId)?.name}</span>}
+          {stops.length > 0 && <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={onReset}>Limpar</Button>}
+        </span>
+      </div>
       <svg
         ref={svg}
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
         className="h-[70vh] min-h-[420px] w-full touch-none select-none"
         onWheel={(e) => { const p = toMap(e); zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, p.x, p.y); }}
-        onPointerDown={(e) => { drag.current = { px: e.clientX, py: e.clientY, moved: false }; (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId); }}
+        onPointerDown={(e) => { drag.current = { px: e.clientX, py: e.clientY, moved: false }; moved.current = false; (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId); }}
         onPointerMove={(e) => {
           const d = drag.current; if (!d) return;
           const r = svg.current!.getBoundingClientRect();
           const dx = ((e.clientX - d.px) / r.width) * view.w, dy = ((e.clientY - d.py) / r.height) * view.h;
           if (Math.abs(e.clientX - d.px) + Math.abs(e.clientY - d.py) > 3) d.moved = true;
-          if (d.moved) { setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })); d.px = e.clientX; d.py = e.clientY; }
+          if (d.moved) { moved.current = true; setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })); d.px = e.clientX; d.py = e.clientY; }
         }}
         onPointerUp={() => { drag.current = null; }}
       >
@@ -108,15 +129,17 @@ function MapCanvas({ path, stops, onPick }: { path: Zone[]; stops: string[]; onP
         {ZONES.map((z) => {
           const big = z.kind === "city" || z.kind === "blackcity";
           const isStop = stops.includes(z.id);
-          const r = (isStop ? 4.2 : onRoute.has(z.id) ? 3.2 : big ? 3 : 2) * Math.max(scale, 0.35);
+          const ring = z.id === originId ? "#34d399" : z.id === destId ? "#fbbf24" : isStop ? "#fff" : "none";
+          const r = (isStop ? 4.8 : onRoute.has(z.id) ? 3.2 : big ? 3 : 2) * Math.max(scale, 0.35);
           return (
-            <circle key={z.id} cx={z.x} cy={-z.y} r={r} fill={KIND_COLOR[z.kind]} stroke={isStop ? "#fff" : "none"} strokeWidth={1 * Math.max(scale, 0.35)}
-              className="cursor-pointer" onClick={() => { if (!drag.current?.moved) onPick(z); }}>
+            <circle key={z.id} cx={z.x} cy={-z.y} r={r} fill={KIND_COLOR[z.kind]} stroke={ring} strokeWidth={(isStop ? 1.8 : 1) * Math.max(scale, 0.35)}
+              onPointerEnter={() => setHover(z)} onPointerLeave={() => setHover((h) => (h?.id === z.id ? null : h))}
+              className="cursor-pointer" onClick={() => { if (!moved.current) onPick(z); }}>
               <title>{z.name} — {KIND_LABEL[z.kind]}{z.tier ? ` T${z.tier}` : ""}</title>
             </circle>
           );
         })}
-        {ZONES.filter((z) => onRoute.has(z.id) || (scale < 0.45 && (z.kind === "city" || z.kind === "blackcity"))).map((z) => (
+        {ZONES.filter((z) => onRoute.has(z.id) || stops.includes(z.id) || hover?.id === z.id || (scale < 0.45 && (z.kind === "city" || z.kind === "blackcity"))).map((z) => (
           <text key={`t${z.id}`} x={z.x + 5 * Math.max(scale, 0.35)} y={-z.y + 1.5} fontSize={9 * Math.max(scale, 0.4)} fill="currentColor" className="pointer-events-none text-foreground" paintOrder="stroke" stroke="#0a0d15" strokeWidth={2 * Math.max(scale, 0.4)}>{z.name}</text>
         ))}
       </svg>
@@ -153,13 +176,13 @@ export function WorldMapView({ state, onChange }: { state: MapState; onChange: (
     set({ stops: next });
   };
   const slots = Math.max(2, stops.length);
+  // 1º clique = origem, 2º clique = destino, 3º clique começa uma rota nova.
   const pick = (z: Zone) => {
-    const next = [...stops];
-    while (next.length < 2) next.push("");
-    const empty = next.findIndex((s) => !zoneById(s));
-    if (empty >= 0) next[empty] = z.id; else next[next.length - 1] = z.id;
-    set({ stops: next });
+    if (filled.length === 0) set({ stops: [z.id, ""] });
+    else if (filled.length === 1) { if (filled[0] !== z.id) set({ stops: [filled[0]!, z.id] }); }
+    else set({ stops: [z.id, ""] });
   };
+  const step = filled.length === 0 ? 0 : filled.length === 1 ? 1 : 2;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -247,7 +270,7 @@ export function WorldMapView({ state, onChange }: { state: MapState; onChange: (
           )}
         </section>
       </div>
-      <MapCanvas path={path} stops={filled} onPick={pick} />
+      <MapCanvas path={path} stops={filled} step={step} onPick={pick} onReset={() => set({ stops: [] })} />
     </div>
   );
 }
