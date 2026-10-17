@@ -16,6 +16,7 @@ import { Route as BuildsRouteImport } from './routes/builds'
 import { Route as LutasRouteImport } from './routes/lutas'
 import { Route as KillsRouteImport } from './routes/kills'
 import { Route as ConteudosRouteImport } from './routes/conteudos'
+import { Route as MapaRouteImport } from './routes/mapa'
 import { Route as EventoIdRouteImport } from './routes/evento.$id'
 import { Route as ApiPublicShareImageRouteImport } from './routes/api/public/share-image'
 import { Route as ApiPublicKillImageRouteImport } from './routes/api/public/kill-image'
@@ -41,6 +42,11 @@ const BuildsRoute = BuildsRouteImport.update({
 const ConteudosRoute = ConteudosRouteImport.update({
   id: '/conteudos',
   path: '/conteudos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapaRoute = MapaRouteImport.update({
+  id: '/mapa',
+  path: '/mapa',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KillsRoute = KillsRouteImport.update({
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/lutas': typeof LutasRoute
   '/kills': typeof KillsRoute
   '/conteudos': typeof ConteudosRoute
+  '/mapa': typeof MapaRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/lutas': typeof LutasRoute
   '/kills': typeof KillsRoute
   '/conteudos': typeof ConteudosRoute
+  '/mapa': typeof MapaRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/lutas': typeof LutasRoute
   '/kills': typeof KillsRoute
   '/conteudos': typeof ConteudosRoute
+  '/mapa': typeof MapaRoute
   '/evento/$id': typeof EventoIdRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
@@ -138,9 +147,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/mapa' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/mapa' | '/evento/$id' | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
   id:
     | '__root__'
     | '/'
@@ -148,7 +157,7 @@ export interface FileRouteTypes {
     | '/builds'
     | '/criar'
     | '/lutas'
-    | '/kills' | '/conteudos'
+    | '/kills' | '/conteudos' | '/mapa'
     | '/evento/$id'
     | '/api/public/discord-interactions' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
   fileRoutesById: FileRoutesById
@@ -161,6 +170,7 @@ export interface RootRouteChildren {
   LutasRoute: typeof LutasRoute
   KillsRoute: typeof KillsRoute
   ConteudosRoute: typeof ConteudosRoute
+  MapaRoute: typeof MapaRoute
   EventoIdRoute: typeof EventoIdRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
@@ -197,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/conteudos'
       fullPath: '/conteudos'
       preLoaderRoute: typeof ConteudosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mapa': {
+      id: '/mapa'
+      path: '/mapa'
+      fullPath: '/mapa'
+      preLoaderRoute: typeof MapaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kills': {
@@ -273,6 +290,7 @@ const rootRouteChildren: RootRouteChildren = {
   LutasRoute: LutasRoute,
   KillsRoute: KillsRoute,
   ConteudosRoute: ConteudosRoute,
+  MapaRoute: MapaRoute,
   EventoIdRoute: EventoIdRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
