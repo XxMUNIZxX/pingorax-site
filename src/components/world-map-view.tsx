@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  EDGES, KIND_COLOR, KIND_LABEL, MOUNTS, ROADS, ZONES, dangerSummary, estimateSeconds, formatDuration, isGraphZone, placeById, planRoute, searchPlaces,
-  type MountId, type Place, type PlaceKind, type RoadZone, type RouteMode, type Zone, type ZoneKind,
+  EDGES, KIND_COLOR, KIND_LABEL, MOUNTS, ZONES, dangerSummary, estimateSeconds, formatDuration, planRoute, searchZones, zoneById,
+  type MountId, type RouteMode, type Zone, type ZoneKind,
 } from "@/lib/world-map";
 
 export type MapState = { stops: string[]; mode: RouteMode; avoid: ZoneKind[]; mount: MountId };
@@ -15,10 +15,10 @@ export type MapState = { stops: string[]; mode: RouteMode; avoid: ZoneKind[]; mo
 const AVOIDABLE: ZoneKind[] = ["red", "black", "yellow"];
 
 function ZonePicker({ label, value, onChange, onRemove }: { label: string; value: string | undefined; onChange: (id: string | undefined) => void; onRemove?: () => void }) {
-  const zone = placeById(value);
+  const zone = zoneById(value);
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
-  const results = useMemo(() => searchPlaces(text), [text]);
+  const results = useMemo(() => searchZones(text), [text]);
   return (
     <div className="relative">
       <Label className="mb-1 block text-xs text-muted-foreground">{label}</Label>
@@ -61,21 +61,11 @@ const BOUNDS = (() => {
   return { x, y, w: Math.max(...xs) + pad - x, h: Math.max(...ys) + pad - y };
 })();
 
-function MapCanvas({ path, stops, onPick }: { path: Place[]; stops: string[]; onPick: (z: Zone) => void }) {
+function MapCanvas({ path, stops, onPick }: { path: Zone[]; stops: string[]; onPick: (z: Zone) => void }) {
   const [view, setView] = useState(BOUNDS);
   const drag = useRef<{ px: number; py: number; moved: boolean } | null>(null);
   const svg = useRef<SVGSVGElement>(null);
   const onRoute = useMemo(() => new Set(path.map((z) => z.id)), [path]);
-  const runs = useMemo(() => {
-    const out: Zone[][] = [];
-    let cur: Zone[] = [];
-    for (const p of path) {
-      if (isGraphZone(p)) cur.push(p);
-      else { if (cur.length > 1) out.push(cur); cur = []; }
-    }
-    if (cur.length > 1) out.push(cur);
-    return out;
-  }, [path]);
   const scale = view.w / BOUNDS.w;
 
   function zoom(factor: number, cx?: number, cy?: number) {
@@ -112,9 +102,9 @@ function MapCanvas({ path, stops, onPick }: { path: Place[]; stops: string[]; on
         <g stroke="currentColor" className="text-border" strokeWidth={0.5 * Math.max(scale, 0.3)} opacity={path.length ? 0.45 : 0.8}>
           {EDGES.map(([a, b], i) => <line key={i} x1={ZONES[a]!.x} y1={-ZONES[a]!.y} x2={ZONES[b]!.x} y2={-ZONES[b]!.y} />)}
         </g>
-        {runs.map((run, i) => (
-          <polyline key={i} points={run.map((z) => `${z.x},${-z.y}`).join(" ")} fill="none" stroke="#6db6ff" strokeWidth={2.2 * Math.max(scale, 0.35)} strokeLinejoin="round" strokeLinecap="round" />
-        ))}
+        {path.length > 1 && (
+          <polyline points={path.map((z) => `${z.x},${-z.y}`).join(" ")} fill="none" stroke="#6db6ff" strokeWidth={2.2 * Math.max(scale, 0.35)} strokeLinejoin="round" strokeLinecap="round" />
+        )}
         {ZONES.map((z) => {
           const big = z.kind === "city" || z.kind === "blackcity";
           const isStop = stops.includes(z.id);
@@ -136,7 +126,7 @@ function MapCanvas({ path, stops, onPick }: { path: Place[]; stops: string[]; on
         <Button size="icon" variant="secondary" aria-label="Ver tudo" onClick={() => setView(BOUNDS)}><RotateCcw className="size-4" /></Button>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        {(Object.keys(KIND_COLOR) as PlaceKind[]).filter((k) => k !== "road").map((k) => (
+        {(Object.keys(KIND_COLOR) as ZoneKind[]).map((k) => (
           <span key={k} className="flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: KIND_COLOR[k] }} />{KIND_LABEL[k]}</span>
         ))}
       </div>
@@ -144,57 +134,9 @@ function MapCanvas({ path, stops, onPick }: { path: Place[]; stops: string[]; on
   );
 }
 
-const RES_LABEL: Record<string, string> = { FIBER: "Fibra", HIDE: "Couro", ORE: "Minério", ROCK: "Pedra", WOOD: "Madeira" };
-
-function RoadCard({ road, onAdd }: { road: RoadZone; onAdd: (id: string) => void }) {
-  const r = road.road;
-  const res = Object.entries(r.resources);
-  return (
-    <div className="rounded-lg border border-border bg-secondary/40 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-base font-bold">{road.name}</div>
-          <div className="text-xs text-muted-foreground">Road of Avalon · {road.id}</div>
-        </div>
-        <Button type="button" size="sm" variant="outline" onClick={() => onAdd(road.id)}><Plus className="mr-1 size-4" />Na rota</Button>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {res.length === 0 && <span className="text-xs text-muted-foreground">Sem recursos registrados</span>}
-        {res.map(([k, [lo, hi]]) => (
-          <span key={k} className="rounded-full bg-card px-2 py-0.5 text-xs">{RES_LABEL[k] ?? k} T{lo}{hi !== lo ? `–T${hi}` : ""}</span>
-        ))}
-      </div>
-      <dl className="mt-2 grid grid-cols-4 gap-2 text-center text-xs">
-        <div className="rounded bg-card p-1.5"><dt className="text-muted-foreground">Saídas</dt><dd className="text-sm font-bold">{r.exits}</dd></div>
-        <div className="rounded bg-card p-1.5"><dt className="text-muted-foreground">Dungeons</dt><dd className="text-sm font-bold">{r.dungeons}</dd></div>
-        <div className="rounded bg-card p-1.5"><dt className="text-muted-foreground">Baús</dt><dd className="text-sm font-bold">{r.chests}</dd></div>
-        <div className="rounded bg-card p-1.5"><dt className="text-muted-foreground">Pesca</dt><dd className="text-sm font-bold">{r.fishing}</dd></div>
-      </dl>
-    </div>
-  );
-}
-
-function RoadFinder({ onAdd }: { onAdd: (id: string) => void }) {
-  const [text, setText] = useState("");
-  const q = text.trim().toLowerCase();
-  const results = useMemo(() => (q.length < 2 ? [] : searchPlaces(text, 40).filter((p): p is RoadZone => p.kind === "road").slice(0, 8)), [text]);
-  return (
-    <section className="rounded-xl border border-border bg-card p-4">
-      <h2 className="text-lg font-bold">Roads of Avalon</h2>
-      <p className="mb-3 mt-1 text-sm text-muted-foreground">Busque a zona pelo nome ({ROADS.length} zonas) para ver recursos, saídas e dungeons. Use "Na rota" para colocá-la na sua rota manual.</p>
-      <Input value={text} placeholder="Ex.: Ouyos-Aoeuam" onChange={(e) => setText(e.target.value)} />
-      <div className="mt-3 space-y-2">
-        {q.length >= 2 && results.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma Road com esse nome.</p>}
-        {results.map((r) => <RoadCard key={r.id} road={r} onAdd={onAdd} />)}
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">As Roads não têm mapa de ligações: o jogo troca as conexões a cada 12–24 h. Aqui você consulta a zona e monta a sequência na mão.</p>
-    </section>
-  );
-}
-
 export function WorldMapView({ state, onChange }: { state: MapState; onChange: (s: MapState) => void }) {
   const { stops, mode, avoid, mount } = state;
-  const filled = stops.filter((s) => placeById(s));
+  const filled = stops.filter((s) => zoneById(s));
   const route = useMemo(
     () => (filled.length >= 2 ? planRoute(filled, { mode, avoid: new Set(avoid) }) : null),
     [filled.join(","), mode, avoid.join(",")],
@@ -214,7 +156,7 @@ export function WorldMapView({ state, onChange }: { state: MapState; onChange: (
   const pick = (z: Zone) => {
     const next = [...stops];
     while (next.length < 2) next.push("");
-    const empty = next.findIndex((s) => !placeById(s));
+    const empty = next.findIndex((s) => !zoneById(s));
     if (empty >= 0) next[empty] = z.id; else next[next.length - 1] = z.id;
     set({ stops: next });
   };
@@ -286,7 +228,7 @@ export function WorldMapView({ state, onChange }: { state: MapState; onChange: (
                 <div className="rounded-lg bg-secondary p-2"><div className="text-xl font-extrabold">{summary.red + summary.black}</div><div className="text-xs text-muted-foreground">zonas de risco</div></div>
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {(Object.keys(summary) as PlaceKind[]).filter((k) => summary[k] > 0).map((k) => (
+                {(Object.keys(summary) as ZoneKind[]).filter((k) => summary[k] > 0).map((k) => (
                   <span key={k} className="flex items-center gap-1"><span className="size-2 rounded-full" style={{ background: KIND_COLOR[k] }} />{summary[k]} {KIND_LABEL[k].toLowerCase()}</span>
                 ))}
               </div>
@@ -296,20 +238,16 @@ export function WorldMapView({ state, onChange }: { state: MapState; onChange: (
                     <span className="w-5 shrink-0 text-right text-xs text-muted-foreground">{i + 1}</span>
                     <span className="size-2.5 shrink-0 rounded-full" style={{ background: KIND_COLOR[z.kind] }} />
                     <span className={`min-w-0 flex-1 truncate ${stops.includes(z.id) ? "font-bold" : ""}`}>{z.name}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{z.kind === "road" ? "Road" : z.tier ? `T${z.tier}` : ""}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{z.tier ? `T${z.tier}` : ""}</span>
                   </li>
                 ))}
               </ol>
-              {route.manual.some(Boolean) && <p className="text-xs text-teal-300">Trechos com Road of Avalon são ligações manuais: a ligação entre elas muda a cada 12–24 h, então o site só mostra a sequência que você montou.</p>}
               <p className="text-xs text-muted-foreground">Tempo aproximado: conta só o número de zonas, não a distância dentro de cada uma.</p>
             </div>
           )}
         </section>
       </div>
-      <div className="min-w-0 space-y-6">
-        <MapCanvas path={path} stops={filled} onPick={pick} />
-        <RoadFinder onAdd={(id) => { const next = [...stops]; while (next.length < 2) next.push(""); const empty = next.findIndex((x) => !placeById(x)); if (empty >= 0) next[empty] = id; else next.splice(next.length - 1, 0, id); set({ stops: next }); }} />
-      </div>
+      <MapCanvas path={path} stops={filled} onPick={pick} />
     </div>
   );
 }

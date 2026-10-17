@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { WorldMapView, type MapState } from "@/components/world-map-view";
-import { MOUNTS, placeById, type MountId, type RouteMode, type ZoneKind } from "@/lib/world-map";
+import { MOUNTS, zoneById, type MountId, type RouteMode, type ZoneKind } from "@/lib/world-map";
 import { DEFAULT_SHARE_IMAGE, SHARE_ORIGIN } from "@/lib/share-image";
 
 type Search = { rota?: string; modo?: RouteMode; evitar?: string; montaria?: MountId };
@@ -35,7 +35,7 @@ function MapaPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/mapa" });
   const state: MapState = {
-    stops: (search.rota ?? "").split(",").filter((id) => id === "" || placeById(id)),
+    stops: (search.rota ?? "").split(",").filter((id) => id === "" || zoneById(id)),
     mode: search.modo ?? "rapida",
     avoid: (search.evitar ?? "").split(",").filter((k): k is ZoneKind => (KINDS as string[]).includes(k)),
     mount: search.montaria ?? "media",
@@ -44,7 +44,7 @@ function MapaPage() {
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <div className="mb-5">
         <h1 className="text-3xl font-extrabold">Mapa e rotas</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Escolha origem e destino (ou clique nas zonas do mapa) e veja o caminho. Roads of Avalon podem entrar na rota como paradas manuais. O endereço da página guarda a rota, então dá para copiar e mandar para a guilda.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Escolha origem e destino (ou clique nas zonas do mapa) e veja o caminho. O endereço da página guarda a rota, então dá para copiar e mandar para a guilda.</p>
       </div>
       <WorldMapView
         state={state}
@@ -58,7 +58,7 @@ function MapaPage() {
           },
         })}
       />
-      <p className="mt-4 text-xs text-muted-foreground">Dados das zonas e ligações vêm de uma base da comunidade, derivada dos arquivos do jogo, e podem ficar desatualizados após patches. As Roads of Avalon mudam de ligação a cada 12–24 h, então entram só como paradas manuais.</p>
+      <p className="mt-4 text-xs text-muted-foreground">Dados das zonas e ligações vêm de uma base da comunidade, derivada dos arquivos do jogo, e podem ficar desatualizados após patches. Roads of Avalon e portais temporários não entram na rota.</p>
     </main>
   );
 }

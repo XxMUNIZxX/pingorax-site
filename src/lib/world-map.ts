@@ -1,28 +1,23 @@
 import world from "@/data/albion-world.json";
-import roadsData from "@/data/albion-roads.json";
 
 export type ZoneKind = "city" | "blue" | "yellow" | "red" | "black" | "blackcity";
 export type Zone = { id: string; name: string; kind: ZoneKind; tier: number; x: number; y: number };
 
-export type PlaceKind = ZoneKind | "road";
-
-export const KIND_LABEL: Record<PlaceKind, string> = {
+export const KIND_LABEL: Record<ZoneKind, string> = {
   city: "Cidade",
   blue: "Zona azul",
   yellow: "Zona amarela",
   red: "Zona vermelha",
   black: "Zona preta",
   blackcity: "Cidade das Roads/Outlands",
-  road: "Road of Avalon",
 };
-export const KIND_COLOR: Record<PlaceKind, string> = {
+export const KIND_COLOR: Record<ZoneKind, string> = {
   city: "#6db6ff",
   blue: "#4f8fe0",
   yellow: "#e8c33c",
   red: "#e5484d",
   black: "#9aa0b4",
   blackcity: "#c084fc",
-  road: "#2dd4bf",
 };
 /** Perigo de cada tipo de zona: 0 = segura. */
 const DANGER: Record<ZoneKind, number> = { city: 0, blue: 0, yellow: 2, red: 8, black: 12, blackcity: 6 };
@@ -37,29 +32,6 @@ const ADJ: number[][] = ZONES.map(() => []);
 for (const [a, b] of EDGES) {
   ADJ[a]?.push(b);
   ADJ[b]?.push(a);
-}
-
-export type RoadInfo = {
-  /** Recursos por tipo: [tier mínimo, tier máximo]. */
-  resources: Record<string, [number, number]>;
-  exits: number;
-  dungeons: number;
-  chests: number;
-  fishing: number;
-};
-export type RoadZone = { id: string; name: string; kind: "road"; tier: 0; road: RoadInfo };
-export type Place = Zone | RoadZone;
-
-type RawRoads = { roads: [string, string, Record<string, [number, number]>, [number, number, number, number]][] };
-export const ROADS: RoadZone[] = (roadsData as unknown as RawRoads).roads.map(([id, name, resources, c]) => ({
-  id, name, kind: "road", tier: 0, road: { resources, exits: c[0], dungeons: c[1], chests: c[2], fishing: c[3] },
-}));
-const ROAD_INDEX = new Map(ROADS.map((r) => [r.id, r]));
-export const isGraphZone = (p: Place): p is Zone => p.kind !== "road";
-
-export function placeById(id: string | undefined): Place | undefined {
-  if (id === undefined) return undefined;
-  return zoneById(id) ?? ROAD_INDEX.get(id);
 }
 
 export function zoneById(id: string | undefined): Zone | undefined {
@@ -83,27 +55,6 @@ export function searchZones(query: string, limit = 8): Zone[] {
     const z = ZONES[i]!;
     if (n.startsWith(q)) starts.push(z);
     else if (n.includes(q) || z.id === q) has.push(z);
-  }
-  return [...starts, ...has].slice(0, limit);
-}
-
-const ROAD_NAMES = ROADS.map((r) => norm(r.name));
-
-/** Busca em zonas normais e em Roads of Avalon pelo nome. */
-export function searchPlaces(query: string, limit = 8): Place[] {
-  const q = norm(query.trim());
-  if (!q) return [];
-  const starts: Place[] = [];
-  const has: Place[] = [];
-  for (let i = 0; i < ZONES.length; i++) {
-    const n = NAMES[i]!;
-    if (n.startsWith(q)) starts.push(ZONES[i]!);
-    else if (n.includes(q) || ZONES[i]!.id === q) has.push(ZONES[i]!);
-  }
-  for (let i = 0; i < ROADS.length; i++) {
-    const n = ROAD_NAMES[i]!;
-    if (n.startsWith(q)) starts.push(ROADS[i]!);
-    else if (n.includes(q) || norm(ROADS[i]!.id) === q) has.push(ROADS[i]!);
   }
   return [...starts, ...has].slice(0, limit);
 }
@@ -141,29 +92,16 @@ export function findPath(fromId: string, toId: string, opt: RouteOptions): Zone[
   return out.reverse();
 }
 
-/**
- * Rota por várias paradas na ordem dada. Trechos entre duas zonas do mapa normal usam o menor caminho;
- * trechos que envolvem uma Road of Avalon são ligações manuais (as Roads mudam de ligação e não têm grafo).
- */
-export function planRoute(stopIds: string[], opt: RouteOptions): { path: Place[]; legs: Place[][]; manual: boolean[] } | null {
-  const legs: Place[][] = [];
-  const manual: boolean[] = [];
+/** Rota por várias paradas na ordem dada. Retorna null se algum trecho não tiver caminho. */
+export function planRoute(stopIds: string[], opt: RouteOptions): { path: Zone[]; legs: Zone[][] } | null {
+  const legs: Zone[][] = [];
   for (let i = 0; i + 1 < stopIds.length; i++) {
-    const a = placeById(stopIds[i]);
-    const b = placeById(stopIds[i + 1]);
-    if (!a || !b) return null;
-    if (isGraphZone(a) && isGraphZone(b)) {
-      const leg = findPath(a.id, b.id, opt);
-      if (!leg) return null;
-      legs.push(leg);
-      manual.push(false);
-    } else {
-      legs.push([a, b]);
-      manual.push(true);
-    }
+    const leg = findPath(stopIds[i]!, stopIds[i + 1]!, opt);
+    if (!leg) return null;
+    legs.push(leg);
   }
   const path = legs.flatMap((l, i) => (i === 0 ? l : l.slice(1)));
-  return { path, legs, manual };
+  return { path, legs };
 }
 
 export const MOUNTS = [
@@ -175,7 +113,7 @@ export const MOUNTS = [
 export type MountId = (typeof MOUNTS)[number]["id"];
 
 /** Estimativa grosseira: segundos por zona atravessada. Não leva em conta a distância dentro de cada zona. */
-export function estimateSeconds(path: Place[], mount: MountId): number {
+export function estimateSeconds(path: Zone[], mount: MountId): number {
   const per = MOUNTS.find((m) => m.id === mount)?.seconds ?? 38;
   return Math.max(0, path.length - 1) * per;
 }
@@ -187,8 +125,8 @@ export function formatDuration(sec: number): string {
   return s ? `${m} min ${s} s` : `${m} min`;
 }
 
-export function dangerSummary(path: Place[]): Record<PlaceKind, number> {
-  const c: Record<PlaceKind, number> = { city: 0, blue: 0, yellow: 0, red: 0, black: 0, blackcity: 0, road: 0 };
+export function dangerSummary(path: Zone[]): Record<ZoneKind, number> {
+  const c: Record<ZoneKind, number> = { city: 0, blue: 0, yellow: 0, red: 0, black: 0, blackcity: 0 };
   for (const z of path) c[z.kind]++;
   return c;
 }
