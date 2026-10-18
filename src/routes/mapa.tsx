@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { WORLD_MAP_ENABLED } from "@/lib/feature-flags";
 import { WorldMapView, type MapState } from "@/components/world-map-view";
 import { MOUNTS, zoneById, type MountId, type RouteMode, type ZoneKind } from "@/lib/world-map";
 import { DEFAULT_SHARE_IMAGE, SHARE_ORIGIN } from "@/lib/share-image";
@@ -9,6 +10,9 @@ const KINDS: ZoneKind[] = ["red", "black", "yellow"];
 
 export const Route = createFileRoute("/mapa")({
   ssr: false,
+  beforeLoad: () => {
+    if (!WORLD_MAP_ENABLED) throw redirect({ to: "/" });
+  },
   validateSearch: (s: Record<string, unknown>): Search => {
     const rota = typeof s["rota"] === "string" && /^[A-Za-z0-9,-]{0,120}$/.test(s["rota"]) ? s["rota"] : undefined;
     const evitar = typeof s["evitar"] === "string" && /^[a-z,]{0,40}$/.test(s["evitar"]) ? s["evitar"] : undefined;
