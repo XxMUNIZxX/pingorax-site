@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WORLD_MAP_ENABLED } from "@/lib/feature-flags";
 import {
   Outlet,
   Link,
@@ -147,7 +148,7 @@ function PanelNavigation() {
     <Button variant="ghost" size="sm" asChild><Link to="/builds" activeProps={active}>Builds</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/lutas" activeProps={active}>Lutas</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/kills" activeProps={active}>Kills</Link></Button>
-    <Button variant="ghost" size="sm" asChild><Link to="/mapa" activeProps={active}>Mapa</Link></Button>
+    {WORLD_MAP_ENABLED && <Button variant="ghost" size="sm" asChild><Link to="/mapa" activeProps={active}>Mapa</Link></Button>}
     <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={active}>Criar conteúdo</Link></Button>
     {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={active}>Administração</Link></Button>}
   </nav>;
@@ -163,7 +164,7 @@ function SiteFooter() {
           <Link to="/conteudos" className="hover:text-foreground">Conteúdos</Link>
           <Link to="/lutas" search={{ servidor: "americas" }} className="hover:text-foreground">Lutas</Link>
           <Link to="/kills" search={{ servidor: "americas" }} className="hover:text-foreground">Kills</Link>
-          <Link to="/mapa" className="hover:text-foreground">Mapa</Link>
+          {WORLD_MAP_ENABLED && <Link to="/mapa" className="hover:text-foreground">Mapa</Link>}
         </nav>
       </div>
     </footer>
