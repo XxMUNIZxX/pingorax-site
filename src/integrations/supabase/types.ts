@@ -270,6 +270,7 @@ export type Database = {
           id: string
           name: string
           position: number
+          role: string | null
           slots: number
         }
         Insert: {
@@ -280,6 +281,7 @@ export type Database = {
           id?: string
           name: string
           position?: number
+          role?: string | null
           slots?: number
         }
         Update: {
@@ -290,6 +292,7 @@ export type Database = {
           id?: string
           name?: string
           position?: number
+          role?: string | null
           slots?: number
         }
         Relationships: [
