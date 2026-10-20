@@ -321,6 +321,7 @@ export type Database = {
           content_type: string | null
           created_at: string
           created_by: string
+          guild_id: string | null
           description: string | null
           id: string
           max_players: number
@@ -333,6 +334,7 @@ export type Database = {
           content_type?: string | null
           created_at?: string
           created_by?: string
+          guild_id?: string | null
           description?: string | null
           id?: string
           max_players?: number
@@ -345,6 +347,7 @@ export type Database = {
           content_type?: string | null
           created_at?: string
           created_by?: string
+          guild_id?: string | null
           description?: string | null
           id?: string
           max_players?: number
@@ -400,6 +403,12 @@ export type Database = {
         Relationships: [
           { foreignKeyName: "attendance_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
         ]
+      }
+      guilds: {
+        Row: { created_at: string; description: string | null; id: string; name: string; owner_id: string; slug: string }
+        Insert: { created_at?: string; description?: string | null; id?: string; name: string; owner_id?: string; slug: string }
+        Update: { created_at?: string; description?: string | null; id?: string; name?: string; owner_id?: string; slug?: string }
+        Relationships: []
       }
       waitlist: {
         Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }

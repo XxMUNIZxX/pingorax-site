@@ -23,12 +23,14 @@ import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/we
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { fetchWaitlists } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
+import { GuildPanel, useMyGuilds } from "@/components/guild-panel";
+import { fetchEventGuildId } from "@/lib/guilds";
 import { fetchAttendance, markAttendance, summarizeAttendance } from "@/lib/attendance";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
-type Draft = { id?: string; copyOf?: string; repeat?: number; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
+type Draft = { id?: string; copyOf?: string; repeat?: number; guild_id?: string | null; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
   const d = new Date(iso);
@@ -115,6 +117,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   }
   /** Abre o editor com uma cópia: sem pings, sem horário (para escolher o novo) e salva como conteúdo novo. */
   function duplicate(e: GameEvent) {
+    void fetchEventGuildId(e.id).then((guild_id) => setDraft((d) => (d && !d.id && d.copyOf === e.title ? { ...d, guild_id } : d)));
     setDraft({
       copyOf: e.title, title: `${e.title} (cópia)`.slice(0, 120), description: e.description ?? "", starts_at: "", max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
       weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
@@ -122,6 +125,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function edit(e: GameEvent) {
+    void fetchEventGuildId(e.id).then((guild_id) => setDraft((d) => (d?.id === e.id ? { ...d, guild_id } : d)));
     setDraft({
       id: e.id, title: e.title, description: e.description ?? "", starts_at: toLocalInput(e.starts_at), max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
       weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), id: w.id, role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
@@ -141,6 +145,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
       <p className="mt-4 text-sm text-muted-foreground">{isAdmin ? "Todos os conteúdos" : "Meus conteúdos e compartilhados comigo"}</p>
 
       <DiscordPanel isAdmin={isAdmin} />
+      <GuildPanel userId={userId} canCreate={canCreate} />
 
       {attendance && playerStats.length > 0 && (
         <details className="panel mt-6 p-4">
@@ -157,7 +162,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
         </details>
       )}
 
-      {draft && <EventEditor draft={draft} setDraft={setDraft} onSaved={() => { setDraft(null); qc.invalidateQueries({ queryKey: ["managed-events"] }); qc.invalidateQueries({ queryKey: ["events"] }); }} />}
+      {draft && <EventEditor userId={userId} draft={draft} setDraft={setDraft} onSaved={() => { setDraft(null); qc.invalidateQueries({ queryKey: ["managed-events"] }); qc.invalidateQueries({ queryKey: ["events"] }); }} />}
 
       <div className="mt-8 space-y-4">
         {isPending && <p className="text-muted-foreground">Carregando conteúdos...</p>}
@@ -241,10 +246,11 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   );
 }
 
-function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
+function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const refreshDiscord = useServerFn(refreshDiscordMessage);
   const options = useContentOptions();
+  const myGuilds = useMyGuilds(userId).data ?? null;  // null = migração 0013 não rodada
   const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
   const modeList = withCurrentValue(options.modes, draft.mode);
   const typeList = withCurrentValue(options.types, draft.content_type);
@@ -267,7 +273,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
     if (!draft.title || !draft.starts_at || draft.weapons.length === 0) { toast.error("Preencha título, horário e ao menos uma arma"); return; }
     setSaving(true);
     try {
-    const payload = { title: draft.title, description: draft.description || null, starts_at: new Date(draft.starts_at).toISOString(), max_players: draft.max_players, mode: draft.mode || null, caller_name: draft.caller_name?.trim() || null, content_type: draft.content_type || null };
+    const payload = { title: draft.title, description: draft.description || null, starts_at: new Date(draft.starts_at).toISOString(), max_players: draft.max_players, mode: draft.mode || null, caller_name: draft.caller_name?.trim() || null, content_type: draft.content_type || null, ...(myGuilds && draft.guild_id !== undefined ? { guild_id: draft.guild_id } : {}) };
     let eventId = draft.id;
     if (eventId) {
       const { data, error } = await supabase.from("events").update(payload).eq("id", eventId).select("id").maybeSingle();
@@ -355,6 +361,20 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
           <Label htmlFor="content-caller">Caller / líder</Label>
           <Input id="content-caller" maxLength={80} placeholder="Nome do Caller" value={draft.caller_name || ""} onChange={(e) => set({ caller_name: e.target.value })} />
         </div>
+        {myGuilds && (myGuilds.length > 0 || draft.guild_id) && (
+          <div className="space-y-1">
+            <Label htmlFor="content-guild">Guilda</Label>
+            <Select value={draft.guild_id ?? "none"} onValueChange={(v) => set({ guild_id: v === "none" ? null : v })}>
+              <SelectTrigger id="content-guild"><SelectValue placeholder="Sem guilda" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem guilda</SelectItem>
+                {myGuilds.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                {draft.guild_id && !myGuilds.some((g) => g.id === draft.guild_id) && <SelectItem value={draft.guild_id}>Outra guilda (atual)</SelectItem>}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Aparece na página pública da guilda.</p>
+          </div>
+        )}
         {!draft.id && (
           <div className="space-y-1">
             <Label htmlFor="content-repeat">Repetir</Label>
