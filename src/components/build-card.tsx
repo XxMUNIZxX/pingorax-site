@@ -38,8 +38,8 @@ export function BuildCard({ build, uses, showGear, mine, onOpen }: { build: Buil
   );
 }
 
-export function BuildDialog({ build, uses, canChange, onClose, onEdit, onDelete, onDuplicate }: {
-  build: Build | null; uses: number; canChange: boolean; onClose: () => void; onEdit: (build: Build) => void; onDelete: (build: Build) => void; onDuplicate?: (build: Build) => void;
+export function BuildDialog({ build, uses, canChange, onClose, onEdit, onDelete, onDuplicate, onCopyLink }: {
+  build: Build | null; uses: number; canChange: boolean; onClose: () => void; onEdit: (build: Build) => void; onDelete: (build: Build) => void; onDuplicate?: (build: Build) => void; onCopyLink?: (build: Build) => void;
 }) {
   const nameOf = useItemNames();
   return (
@@ -59,8 +59,9 @@ export function BuildDialog({ build, uses, canChange, onClose, onEdit, onDelete,
               <li key={slot.key} className="flex gap-2"><span className="w-28 shrink-0 text-muted-foreground">{slot.label}</span><span className="min-w-0 break-words">{nameOf(build[slot.key]!)}</span></li>
             ))}
           </ul>
-          {(canChange || onDuplicate) && (
+          {(canChange || onDuplicate || onCopyLink) && (
             <div className="flex flex-wrap justify-end gap-2">
+              {onCopyLink && <Button variant="ghost" onClick={() => onCopyLink(build)}>Copiar link</Button>}
               {canChange && <Button variant="ghost" className="text-destructive" onClick={() => onDelete(build)}>Apagar</Button>}
               {canChange && <Button variant="secondary" onClick={() => onEdit(build)}>Editar</Button>}
               {onDuplicate && <Button variant={canChange ? "outline" : "gold"} onClick={() => onDuplicate(build)}>Criar build baseada nesta</Button>}

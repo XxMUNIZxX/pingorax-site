@@ -22,6 +22,8 @@ import { BuildPicker } from "@/components/build-picker";
 import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { fetchWaitlists } from "@/lib/waitlist";
+import { copyText, eventInviteText } from "@/lib/share-text";
+import { SHARE_ORIGIN } from "@/lib/share-image";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
@@ -91,6 +93,10 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     qc.invalidateQueries({ queryKey: ["waitlists"] });
     void refreshDiscord({ data: { eventId: e.id } }).catch(() => undefined);
   }
+  async function copyInvite(e: GameEvent) {
+    const ok = await copyText(eventInviteText(e, SHARE_ORIGIN, formatDate(e.starts_at)));
+    if (ok) toast.success("Convite copiado! Cole no Discord ou no WhatsApp."); else toast.error("Não consegui copiar. Tente pelo botão Compartilhar na página do conteúdo.");
+  }
   async function removeQueued(id: string, eventId: string) {
     const { error } = await supabase.from("waitlist").delete().eq("id", id);
     if (error) { toast.error("Não foi possível tirar da fila."); return; }
@@ -146,6 +152,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                 <Button size="sm" variant="outline" asChild><Link to="/evento/$id" params={{ id: e.id }}>Ver</Link></Button>
                 <Button size="sm" variant="secondary" onClick={() => edit(e)}>Editar</Button>
                 <Button size="sm" variant="outline" onClick={() => duplicate(e)}>Duplicar</Button>
+                <Button size="sm" variant="outline" onClick={() => void copyInvite(e)}>Copiar convite</Button>
                 <Button size="sm" variant="outline" disabled={e.signups.length === 0 && !(waitlists.data?.get(e.id)?.length)} onClick={() => void clearSignups(e)}>Limpar pings</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button size="sm" variant="outline" disabled={posting === e.id}>{posting === e.id ? "Enviando..." : posted.data?.has(e.id) ? "Atualizar no Discord" : "Postar no Discord"}</Button></DropdownMenuTrigger>

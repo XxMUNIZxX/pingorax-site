@@ -17,6 +17,8 @@ import { BuildWeaponFilter, NO_CATEGORY, groupWeapons } from "@/components/build
 import { baseOf, draftFromBuild, emptyBuildDraft, fetchBuilds, fetchBuildUsage, normalize, type Build, type BuildDraft } from "@/lib/builds";
 import { useContentOptions } from "@/lib/content-options";
 import { fetchWeaponCatalog } from "@/lib/weapon-catalog";
+import { buildLink, copyText } from "@/lib/share-text";
+import { SHARE_ORIGIN } from "@/lib/share-image";
 
 export const Route = createFileRoute("/builds")({
   ssr: false,
@@ -28,6 +30,9 @@ export const Route = createFileRoute("/builds")({
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
   ] }),
+  // /builds?build=<id> abre a build direto (link para compartilhar).
+  validateSearch: (s: Record<string, unknown>): { build?: string } =>
+    typeof s["build"] === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s["build"]) ? { build: s["build"] } : {},
   component: BuildsPage,
 });
 
@@ -46,7 +51,8 @@ function BuildsPage() {
   const usage = usageQuery.data;
 
   const [editing, setEditing] = useState<Editing>(null);
-  const [opened, setOpened] = useState<string | null>(null);
+  const linked = Route.useSearch().build;
+  const [opened, setOpened] = useState<string | null>(linked ?? null);
   const [needLogin, setNeedLogin] = useState(false);
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string | null>(null);
@@ -116,6 +122,9 @@ function BuildsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function startEdit(b: Build) { setOpened(null); setEditing({ key: b.id, id: b.id, draft: draftFromBuild(b) }); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  async function copyLink(b: Build) {
+    if (await copyText(buildLink(SHARE_ORIGIN, b.id))) toast.success("Link da build copiado!"); else toast.error("Não consegui copiar o link.");
+  }
   async function remove(b: Build) {
     if (!confirm(`Apagar a build "${b.name}"? Conteúdos que usam ela ficam sem build.`)) return;
     const { error } = await supabase.from("builds").delete().eq("id", b.id);
@@ -195,7 +204,7 @@ function BuildsPage() {
       </div>
 
       <BuildDialog build={openedBuild} uses={openedBuild ? uses(openedBuild) : 0} canChange={openedBuild ? canChange(openedBuild) : false}
-        onClose={() => setOpened(null)} onEdit={startEdit} onDelete={remove} onDuplicate={startDuplicate} />
+        onClose={() => setOpened(null)} onEdit={startEdit} onDelete={remove} onDuplicate={startDuplicate} onCopyLink={(b) => void copyLink(b)} />
       </>}
     </main>
   );
