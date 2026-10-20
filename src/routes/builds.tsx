@@ -31,7 +31,7 @@ export const Route = createFileRoute("/builds")({
   component: BuildsPage,
 });
 
-type Editing = { id?: string; draft: BuildDraft } | null;
+type Editing = { id?: string; copyOf?: string; key: string; draft: BuildDraft } | null;
 type Sort = "popular" | "recent" | "name";
 type Tab = "builds" | "grupos";
 
@@ -106,9 +106,16 @@ function BuildsPage() {
   }
   function startNew() {
     if (!access.session) { setNeedLogin(true); return; }
-    setEditing({ draft: { ...emptyBuildDraft(), content_type: type !== "all" ? type : null } });
+    setEditing({ key: `new-${Date.now()}`, draft: { ...emptyBuildDraft(), content_type: type !== "all" ? type : null } });
   }
-  function startEdit(b: Build) { setOpened(null); setEditing({ id: b.id, draft: draftFromBuild(b) }); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function startDuplicate(b: Build) {
+    if (!access.session) { setNeedLogin(true); return; }
+    setOpened(null);
+    // Nova build (sem id): sai do mesmo desenho, mas com nome de cópia e o autor em branco para você assinar.
+    setEditing({ key: `copy-${Date.now()}`, copyOf: b.name, draft: { ...draftFromBuild(b), name: `${b.name} (cópia)`.slice(0, 60), author_name: "" } });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function startEdit(b: Build) { setOpened(null); setEditing({ key: b.id, id: b.id, draft: draftFromBuild(b) }); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function remove(b: Build) {
     if (!confirm(`Apagar a build "${b.name}"? Conteúdos que usam ela ficam sem build.`)) return;
     const { error } = await supabase.from("builds").delete().eq("id", b.id);
@@ -146,7 +153,7 @@ function BuildsPage() {
       {tab === "grupos" && <div className="mt-5"><BuildGroupsPanel userId={userId} isAdmin={access.isAdmin} onNeedLogin={() => setNeedLogin(true)} /></div>}
 
       {tab === "builds" && <>
-      {editing && <BuildEditor key={editing.id ?? "new"} id={editing.id} initial={editing.draft} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
+      {editing && <BuildEditor key={editing.key} id={editing.id} copyOf={editing.copyOf} initial={editing.draft} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
 
       <div className="mt-8">
         <BuildWeaponFilter groups={groups} counts={counts} category={category} weapon={weapon}
@@ -188,7 +195,7 @@ function BuildsPage() {
       </div>
 
       <BuildDialog build={openedBuild} uses={openedBuild ? uses(openedBuild) : 0} canChange={openedBuild ? canChange(openedBuild) : false}
-        onClose={() => setOpened(null)} onEdit={startEdit} onDelete={remove} />
+        onClose={() => setOpened(null)} onEdit={startEdit} onDelete={remove} onDuplicate={startDuplicate} />
       </>}
     </main>
   );

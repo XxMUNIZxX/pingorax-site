@@ -11,7 +11,7 @@ import { BuildSlotPicker } from "@/components/build-slot-picker";
 import { buildPayload, type BuildDraft, type SlotKey } from "@/lib/builds";
 import { useContentOptions, withCurrentValue } from "@/lib/content-options";
 
-export function BuildEditor({ id, initial, onCancel, onSaved }: { id?: string | undefined; initial: BuildDraft; onCancel: () => void; onSaved: () => void }) {
+export function BuildEditor({ id, copyOf, initial, onCancel, onSaved }: { id?: string | undefined; copyOf?: string | undefined; initial: BuildDraft; onCancel: () => void; onSaved: () => void }) {
   const [draft, setDraft] = useState(initial);
   const [slot, setSlot] = useState<SlotKey | null>(null);
   const [saving, setSaving] = useState(false);
@@ -35,7 +35,8 @@ export function BuildEditor({ id, initial, onCancel, onSaved }: { id?: string | 
 
   return (
     <fieldset disabled={saving} className="mt-6 min-w-0 border-y border-border py-6">
-      <h2 className="text-xl font-bold">{id ? "Editar build" : "Nova build"}</h2>
+      <h2 className="text-xl font-bold">{id ? "Editar build" : copyOf ? "Nova build baseada em outra" : "Nova build"}</h2>
+      {copyOf && !id && <p className="mt-1 text-sm text-muted-foreground">Começa igual à build “{copyOf}”. Troque os itens que quiser e salve: a original não muda.</p>}
       <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <div className="space-y-4">
           <div className="space-y-1"><Label htmlFor="build-name">Nome da build</Label><Input id="build-name" maxLength={60} placeholder="Ex.: Sagrado ZvZ, Frost de Avalon..." value={draft.name} onChange={(e) => set({ name: e.target.value })} /></div>

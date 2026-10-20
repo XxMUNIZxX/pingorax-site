@@ -24,7 +24,7 @@ import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
-type Draft = { id?: string; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
+type Draft = { id?: string; copyOf?: string; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
   const d = new Date(iso);
@@ -70,6 +70,24 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     qc.invalidateQueries({ queryKey: ["managed-events"] });
     void refreshDiscord({ data: { eventId } }).catch(() => undefined);
   }
+  async function clearSignups(e: GameEvent) {
+    if (e.signups.length === 0) return;
+    if (!confirm(`Limpar os ${e.signups.length} pings de "${e.title}"? As armas e vagas continuam, só os jogadores saem.`)) return;
+    const { error } = await supabase.from("signups").delete().eq("event_id", e.id);
+    if (error) { toast.error("Não foi possível limpar os pings."); return; }
+    toast.success("Pings limpos. O conteúdo está pronto para ser usado de novo.");
+    qc.invalidateQueries({ queryKey: ["managed-events"] });
+    qc.invalidateQueries({ queryKey: ["events"] });
+    void refreshDiscord({ data: { eventId: e.id } }).catch(() => undefined);
+  }
+  /** Abre o editor com uma cópia: sem pings, sem horário (para escolher o novo) e salva como conteúdo novo. */
+  function duplicate(e: GameEvent) {
+    setDraft({
+      copyOf: e.title, title: `${e.title} (cópia)`.slice(0, 120), description: e.description ?? "", starts_at: "", max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
+      weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
   function edit(e: GameEvent) {
     setDraft({
       id: e.id, title: e.title, description: e.description ?? "", starts_at: toLocalInput(e.starts_at), max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
@@ -110,6 +128,8 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" asChild><Link to="/evento/$id" params={{ id: e.id }}>Ver</Link></Button>
                 <Button size="sm" variant="secondary" onClick={() => edit(e)}>Editar</Button>
+                <Button size="sm" variant="outline" onClick={() => duplicate(e)}>Duplicar</Button>
+                <Button size="sm" variant="outline" disabled={e.signups.length === 0} onClick={() => void clearSignups(e)}>Limpar pings</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button size="sm" variant="outline" disabled={posting === e.id}>{posting === e.id ? "Enviando..." : posted.data?.has(e.id) ? "Atualizar no Discord" : "Postar no Discord"}</Button></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -215,7 +235,8 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
 
   return (
     <fieldset disabled={saving} className="mt-6 min-w-0 space-y-6 border-y border-border py-6">
-      <h2 className="text-xl font-bold">{draft.id ? "Editar conteúdo" : "Novo conteúdo"}</h2>
+      <h2 className="text-xl font-bold">{draft.id ? "Editar conteúdo" : draft.copyOf ? "Duplicar conteúdo" : "Novo conteúdo"}</h2>
+      {draft.copyOf && <p className="-mt-4 text-sm text-muted-foreground">Cópia de “{draft.copyOf}”: sem jogadores. Escolha o novo horário e ajuste o que precisar antes de salvar.</p>}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="space-y-2 md:col-span-3"><Label htmlFor="content-title">Título do conteúdo</Label><Input id="content-title" placeholder="Ex: ZvZ Black Zone, Avalon, Gank..." value={draft.title} onChange={(e) => set({ title: e.target.value })} /></div>
         <div className="space-y-2"><Label htmlFor="content-start">Data e horário</Label><Input id="content-start" type="datetime-local" value={draft.starts_at} onChange={(e) => set({ starts_at: e.target.value })} /></div>
