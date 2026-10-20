@@ -1,0 +1,27 @@
+name: CI
+
+# Roda em todo PR e em todo push na main: testes e build. Se algo quebrar, o PR mostra ❌ antes do merge.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - name: Testes
+        run: bun run test
+      - name: Build
+        run: bun run build
+        env:
+          # O build só precisa de valores de exemplo; nada daqui é segredo.
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: public-anon-key-for-build
+      - name: Tipos (aviso, não bloqueia)
+        run: bun run typecheck
+        continue-on-error: true
