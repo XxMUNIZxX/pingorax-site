@@ -162,14 +162,15 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
   const description = [info, event.description ? clip(event.description, 600) : ""].filter(Boolean).join("\n\n");
 
   const link = `${SHARE_ORIGIN}/evento/${event.id}`;
-  // Limite do Discord: 25 botões (5 linhas x 5). Sobram 23 armas + "Sair" + "Abrir no site".
-  const buttons: object[] = weapons.slice(0, 23).map((w) => {
+  // Limite do Discord: 25 botões (5 linhas x 5). Sobram 22 armas + "Sair" + "Abrir no site" + "Remover".
+  const buttons: object[] = weapons.slice(0, 22).map((w) => {
     const left = w.slots - event.signups.filter((s) => s.weapon_id === w.id).length;
     const e = emojiOf(w);
     return { type: 2, style: left > 0 && !full ? 1 : 2, disabled: left <= 0 || full, custom_id: `p:${event.id}:${w.id}`, label: clip(`${w.name} (${Math.max(0, left)})`, 80), ...(e ? { emoji: { id: e.id, name: e.name } } : {}) };
   });
   buttons.push({ type: 2, style: 4, custom_id: `l:${event.id}`, label: "Sair" });
   buttons.push({ type: 2, style: 5, label: "Abrir no site", url: link });
+  buttons.push({ type: 2, style: 2, custom_id: `x:${event.id}`, label: "Remover mensagem" });
   const rows = [];
   for (let i = 0; i < buttons.length; i += 5) rows.push({ type: 1, components: buttons.slice(i, i + 5) });
 
@@ -207,7 +208,7 @@ export async function getChannelInfo(channelId: string, cfg: DiscordConfig) {
   return discord<{ id: string; name?: string; guild_id?: string }>(`/channels/${channelId}`, cfg.botToken);
 }
 
-/** Registra os comandos: /pingorax conectar (só quem gerencia o servidor) e /luta, /kill (qualquer pessoa). */
+/** Registra os comandos: /pingorax conectar e /conteudo remover (só quem gerencia), e /luta, /kill, /build (qualquer pessoa). */
 export async function registerCommands(appId: string, cfg: DiscordConfig) {
   if (!cfg.botToken) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN).");
   const idOption = (what: string) => ({ type: 3, name: "id", description: `Número ou link ${what}`, required: true, max_length: 200 });
@@ -216,6 +217,9 @@ export async function registerCommands(appId: string, cfg: DiscordConfig) {
   await discord(`/applications/${appId}/commands`, cfg.botToken, { method: "PUT", body: JSON.stringify([
     { name: "pingorax", type: 1, description: "Conecta este canal ao PingoraX", default_member_permissions: "32", dm_permission: false,
       options: [{ type: 1, name: "conectar", description: "Gera um código para ligar este canal à sua conta do PingoraX" }] },
+    { name: "conteudo", type: 1, description: "Gerencia as mensagens de conteúdo deste servidor", default_member_permissions: "8192", dm_permission: false,
+      options: [{ type: 1, name: "remover", description: "Tira do canal a mensagem de um conteúdo",
+        options: [{ type: 3, name: "conteudo", description: "Escolha o conteúdo (ou \"todos\" para limpar os que já passaram)", required: true, autocomplete: true, max_length: 100 }] }] },
     { name: "luta", type: 1, description: "Mostra a análise de uma batalha do Albion", options: [idOption("da batalha"), serverOption] },
     { name: "kill", type: 1, description: "Mostra uma kill do Albion", options: [idOption("da kill"), serverOption] },
     { name: "build", type: 1, description: "Mostra a imagem de uma build ou de um grupo de builds do PingoraX",
@@ -250,6 +254,55 @@ export async function editEventMessage(event: Row, channelId: string, messageId:
   return discord(`/channels/${channelId}/messages/${messageId}`, cfg.botToken, { method: "PATCH", body: JSON.stringify(buildMessage(event, await weaponEmojis(event, cfg, true))) });
 }
 
+// ---- Limpeza: tirar do canal a mensagem de um conteúdo que já passou ----
+/** Minutos depois do horário do conteúdo em que a mensagem sai sozinha do canal. */
+export const CLEANUP_GRACE_MINUTES = 60;
+const CLEANUP_WINDOW_HOURS = 24;
+const CLEANUP_MAX_PER_RUN = 40;
+let lastCleanup = 0;
+
+/** Apaga a mensagem no Discord. `true` se apagou ou se ela já não existia; lança erro nos demais casos (ex.: sem permissão). */
+export async function deleteDiscordMessage(channelId: string, messageId: string, cfg: DiscordConfig): Promise<boolean> {
+  if (!cfg.botToken) throw new Error("Discord não configurado (DISCORD_BOT_TOKEN).");
+  const response = await fetch(`${API}/channels/${channelId}/messages/${messageId}`, { method: "DELETE", headers: { Authorization: `Bot ${cfg.botToken}` } });
+  if (response.ok || response.status === 404) return true;
+  throw new Error(`Discord respondeu ${response.status}: ${(await response.text()).slice(0, 200)}`);
+}
+
+/** Quem pode remover mensagens pelo Discord: Administrador, Gerenciar Servidor ou Gerenciar Mensagens. */
+export function canManageMessages(permissions?: string): boolean {
+  try { return (BigInt(permissions ?? "0") & (0x8n | 0x20n | 0x2000n)) !== 0n; } catch { return false; }
+}
+
+/** Intervalo (em ISO) dos conteúdos cuja mensagem deve sair agora: começaram há mais de `grace` minutos e há menos de 24 h. */
+export function cleanupRange(now: number, graceMinutes = CLEANUP_GRACE_MINUTES) {
+  return {
+    newest: new Date(now - graceMinutes * 60_000).toISOString(),
+    oldest: new Date(now - (graceMinutes + CLEANUP_WINDOW_HOURS * 60) * 60_000).toISOString(),
+  };
+}
+
+/** Remove do canal as mensagens dos conteúdos que já passaram. Seguro de chamar várias vezes (apagar o que já sumiu não faz mal). */
+export async function cleanupExpiredPosts(cfg: DiscordConfig, now = Date.now()): Promise<{ checked: number; removed: number; failed: number; skipped?: true }> {
+  if (!cfg.botToken) return { checked: 0, removed: 0, failed: 0, skipped: true };
+  if (now - lastCleanup < 60_000) return { checked: 0, removed: 0, failed: 0, skipped: true };
+  lastCleanup = now;
+  const grace = Number(serverEnv("DISCORD_CLEANUP_MINUTES"));
+  const { newest, oldest } = cleanupRange(now, Number.isFinite(grace) && grace >= 0 && serverEnv("DISCORD_CLEANUP_MINUTES") ? grace : CLEANUP_GRACE_MINUTES);
+  const { data, error } = await anonClient().from("discord_posts")
+    .select("event_id,channel_id,message_id,events!inner(starts_at)")
+    .lt("events.starts_at", newest).gt("events.starts_at", oldest)
+    .order("created_at", { ascending: false }).limit(CLEANUP_MAX_PER_RUN);
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as { event_id: string; channel_id: string; message_id: string }[];
+  let removed = 0; let failed = 0;
+  for (const row of rows) {
+    try { await deleteDiscordMessage(row.channel_id, row.message_id, cfg); removed++; }
+    catch (err) { failed++; console.error("[discord] limpeza", row.event_id, err); }
+  }
+  return { checked: rows.length, removed, failed };
+}
+
 const hex = (value: string) => Uint8Array.from(value.match(/../g)?.map((b) => parseInt(b, 16)) ?? []);
 
 /** Confere a assinatura Ed25519 que o Discord manda em toda interação. */
@@ -261,12 +314,13 @@ export async function verifyDiscordRequest(publicKey: string, signature: string 
   } catch { return false; }
 }
 
+type Opt = { name: string; value?: string | number; focused?: boolean; options?: Opt[] };
 type Interaction = {
   type: number;
   channel_id?: string; guild_id?: string;
   member?: { nick?: string | null; permissions?: string; user?: { id?: string; username?: string; global_name?: string | null } };
-  token?: string; application_id?: string;
-  data?: { name?: string; options?: { name: string; value?: string | number; focused?: boolean }[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
+  token?: string; application_id?: string; message?: { id?: string; channel_id?: string };
+  data?: { name?: string; options?: Opt[]; custom_id?: string; components?: { components?: { custom_id?: string; value?: string }[] }[] };
   user?: { id?: string; username?: string; global_name?: string | null };
 };
 
@@ -333,8 +387,61 @@ async function buildCommand(body: Interaction) {
   }
 }
 
+const NO_PERMISSION = "Só quem tem **Gerenciar Mensagens** (ou Gerenciar Servidor) pode remover mensagens de conteúdo.";
+const whenText = (iso: string) => new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+type PostRow = { event_id: string; channel_id: string; message_id: string; events: { title: string; starts_at: string } | null };
+async function postsInChannel(channelId: string, onlyPast: boolean, limit: number): Promise<PostRow[]> {
+  let query = anonClient().from("discord_posts").select("event_id,channel_id,message_id,events!inner(title,starts_at)").eq("channel_id", channelId);
+  if (onlyPast) query = query.lt("events.starts_at", new Date().toISOString());
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data ?? []) as unknown as PostRow[];
+}
+
+/** Autocomplete de /conteudo remover: os conteúdos postados neste canal. */
+async function removeChoices(body: Interaction) {
+  const typed = String(body.data?.options?.[0]?.options?.find((o) => o.focused)?.value ?? "").toLowerCase();
+  const choices: { name: string; value: string }[] = [{ name: "Todos os que já passaram (neste canal)", value: "todos" }];
+  if (body.channel_id && canManageMessages(body.member?.permissions)) {
+    for (const post of await postsInChannel(body.channel_id, false, 24)) {
+      const title = post.events?.title ?? "Conteúdo";
+      if (typed && !title.toLowerCase().includes(typed)) continue;
+      choices.push({ name: clip(`${title} — ${post.events ? whenText(post.events.starts_at) : ""}`, 100), value: post.event_id });
+    }
+  }
+  return { type: 8, data: { choices: choices.slice(0, 25) } };
+}
+
+/** /conteudo remover: apaga a mensagem de um conteúdo (ou de todos os que já passaram) deste canal. */
+async function removeCommand(body: Interaction) {
+  if (!body.channel_id) return ephemeral("Use este comando dentro de um canal de servidor.");
+  if (!canManageMessages(body.member?.permissions)) return ephemeral(NO_PERMISSION);
+  const cfg = discordConfig();
+  if (!cfg.botToken) return ephemeral("O bot não está configurado no servidor do PingoraX.");
+  const choice = String(body.data?.options?.[0]?.options?.find((o) => o.name === "conteudo")?.value ?? "").trim();
+  try {
+    if (choice === "todos") {
+      const past = await postsInChannel(body.channel_id, true, 50);
+      let removed = 0;
+      for (const post of past) { try { await deleteDiscordMessage(post.channel_id, post.message_id, cfg); removed++; } catch (error) { console.error("[discord] remover", error); } }
+      return ephemeral(removed ? `Removi ${removed} mensagem(ns) de conteúdos que já passaram.` : "Não há mensagens de conteúdos passados neste canal.");
+    }
+    if (!new RegExp(`^${UUID}$`).test(choice)) return ephemeral("Escolha um conteúdo da lista que aparece enquanto você digita.");
+    const post = (await postsInChannel(body.channel_id, false, 100)).find((row) => row.event_id === choice);
+    if (!post) return ephemeral("Não achei a mensagem desse conteúdo neste canal. Ela pode já ter sido removida.");
+    await deleteDiscordMessage(post.channel_id, post.message_id, cfg);
+    return ephemeral(`Mensagem de **${clip(post.events?.title ?? "conteúdo", 80)}** removida do canal.`);
+  } catch (error) {
+    console.error("[discord] remover", error);
+    return ephemeral("Não consegui remover. Confira se o bot tem a permissão **Gerenciar Mensagens** neste canal.");
+  }
+}
+
 export async function handleInteraction(body: Interaction) {
   if (body.type === 1) return { type: 1 };
+  // Aproveita cada interação para limpar conteúdos vencidos (reforço do agendamento; no máximo 1x por minuto).
+  void runLater(cleanupExpiredPosts(discordConfig()).catch((error) => console.error("[discord] limpeza", error)));
 
   // Autocomplete do /build (type 4): devolve até 25 nomes.
   if (body.type === 4 && body.data?.name === "build") {
@@ -344,7 +451,12 @@ export async function handleInteraction(body: Interaction) {
       return { type: 8, data: { choices: await searchBuilds(typed) } };
     } catch (error) { console.error("[discord] autocomplete", error); return { type: 8, data: { choices: [] } }; }
   }
+  if (body.type === 4 && body.data?.name === "conteudo") {
+    try { return await removeChoices(body); }
+    catch (error) { console.error("[discord] autocomplete conteudo", error); return { type: 8, data: { choices: [] } }; }
+  }
   if (body.type === 2 && body.data?.name === "build") return buildCommand(body);
+  if (body.type === 2 && body.data?.name === "conteudo" && body.data.options?.[0]?.name === "remover") return removeCommand(body);
 
   if (body.type === 2 && (body.data?.name === "luta" || body.data?.name === "kill")) return analysisCommand(body, body.data.name);
 
@@ -374,6 +486,17 @@ export async function handleInteraction(body: Interaction) {
     const event = await loadEvent(match[1]!);
     if (!event) return ephemeral("Esse conteúdo não existe mais.");
     return { type: 7, data: buildMessage(event, await weaponEmojis(event, discordConfig(), false)) };
+  }
+
+  // Clique em "Remover mensagem" -> apaga o card do canal (só quem gerencia mensagens)
+  if (body.type === 3 && customId.startsWith("x:")) {
+    if (!canManageMessages(body.member?.permissions)) return ephemeral(NO_PERMISSION);
+    const channelId = body.message?.channel_id ?? body.channel_id; const messageId = body.message?.id;
+    const cfg = discordConfig();
+    if (!channelId || !messageId || !cfg.botToken) return ephemeral("Não consegui identificar a mensagem.");
+    try { await deleteDiscordMessage(channelId, messageId, cfg); }
+    catch (error) { console.error("[discord] remover botão", error); return ephemeral("Não consegui remover. Confira se o bot tem a permissão **Gerenciar Mensagens** neste canal."); }
+    return ephemeral("Mensagem removida do canal.");
   }
 
   // Clique no botão da arma -> abre a janelinha pedindo o nick

@@ -3,7 +3,9 @@
   "name": "pingorax",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/worker.ts",
+  // Limpeza do Discord: a cada 10 minutos remove do canal as mensagens de conteúdos que já passaram
+  "triggers": { "crons": ["*/10 * * * *"] },
   "observability": { "enabled": true },
   // Mantém as variáveis cadastradas no painel da Cloudflare a cada deploy (senão o `wrangler deploy` pode apagá-las)
   "keep_vars": true
