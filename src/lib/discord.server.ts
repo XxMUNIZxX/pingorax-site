@@ -12,6 +12,7 @@ type Row = {
   mode: string | null; caller_name: string | null; content_type: string | null;
   event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null; icon_path?: string | null; role?: string | null }[];
   signups: { id: string; nick: string; weapon_id: string; created_at: string }[];
+  waitlist?: { nick: string; weapon_id: string }[];
 };
 
 export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined; appId?: string | undefined };
@@ -35,7 +36,13 @@ export async function loadEvent(id: string): Promise<Row | null> {
   // Migração 0009 (coluna role) ainda não rodada: segue sem a função, para o bot continuar funcionando.
   if (isMissingRoleColumn(error)) ({ data, error } = await query("id,name,slots,position,icon_code,icon_path"));
   if (error) throw error;
-  return (data as unknown as Row | null) ?? null;
+  const row = (data as unknown as Row | null) ?? null;
+  if (row) {
+    // Fila de espera (migração 0011): se a tabela ainda não existe, o card só não mostra a fila.
+    const queue = await anonClient().from("waitlist").select("nick,weapon_id").eq("event_id", id).order("created_at");
+    if (!queue.error) row.waitlist = queue.data ?? [];
+  }
+  return row;
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
@@ -158,6 +165,11 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
       const e = emojiOf(w);
       return { name: clip(`${e ? `${emojiTag(e)} ` : ""}${w.name}${roleLabel(w.role) ? ` · ${roleLabel(w.role)}` : ""} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
     }),
+    ...(event.waitlist?.length ? [{
+      name: `Fila de espera (${event.waitlist.length})`,
+      value: clip(`${event.waitlist.slice(0, 10).map((q, i) => `${i + 1}. ${safeNick(q.nick)}`).join("\n")}${event.waitlist.length > 10 ? `\n+${event.waitlist.length - 10}…` : ""}`, 1024),
+      inline: false,
+    }] : []),
   ];
   const description = [info, event.description ? clip(event.description, 600) : ""].filter(Boolean).join("\n\n");
 
@@ -353,8 +365,11 @@ export async function discordMaintenance(cfg: DiscordConfig, now = Date.now()) {
   if (now - lastMaintenance < 60_000) return { skipped: true as const };
   lastMaintenance = now;
   const result: { cleanup?: Awaited<ReturnType<typeof cleanupExpiredPosts>>; reminders?: Awaited<ReturnType<typeof sendReminders>>; errors: string[] } = { errors: [] };
-  try { result.cleanup = await cleanupExpiredPosts(cfg, now); } catch (error) { result.errors.push("limpeza"); console.error("[discord] limpeza", error); }
-  try { result.reminders = await sendReminders(cfg, now); } catch (error) { result.errors.push("lembretes"); console.error("[discord] lembretes", error); }
+  const { alertError } = await import("@/lib/alerts.server");
+  try { result.cleanup = await cleanupExpiredPosts(cfg, now); } catch (error) { result.errors.push("limpeza"); console.error("[discord] limpeza", error); await alertError("Limpeza de mensagens falhou", error, now); }
+  try { result.reminders = await sendReminders(cfg, now); } catch (error) { result.errors.push("lembretes"); console.error("[discord] lembretes", error); await alertError("Lembretes falharam", error, now); }
+  if ((result.cleanup?.failed ?? 0) > 0) await alertError("Não consegui apagar mensagens", `${result.cleanup!.failed} mensagem(ns) não foram apagadas. Confira se o bot tem a permissão Gerenciar Mensagens nos canais.`, now);
+  if ((result.reminders?.failed ?? 0) > 0) await alertError("Não consegui enviar lembretes", `${result.reminders!.failed} lembrete(s) falharam. Confira se o bot ainda enxerga o canal.`, now);
   return result;
 }
 
