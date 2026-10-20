@@ -365,8 +365,11 @@ export async function discordMaintenance(cfg: DiscordConfig, now = Date.now()) {
   if (now - lastMaintenance < 60_000) return { skipped: true as const };
   lastMaintenance = now;
   const result: { cleanup?: Awaited<ReturnType<typeof cleanupExpiredPosts>>; reminders?: Awaited<ReturnType<typeof sendReminders>>; errors: string[] } = { errors: [] };
-  try { result.cleanup = await cleanupExpiredPosts(cfg, now); } catch (error) { result.errors.push("limpeza"); console.error("[discord] limpeza", error); }
-  try { result.reminders = await sendReminders(cfg, now); } catch (error) { result.errors.push("lembretes"); console.error("[discord] lembretes", error); }
+  const { alertError } = await import("@/lib/alerts.server");
+  try { result.cleanup = await cleanupExpiredPosts(cfg, now); } catch (error) { result.errors.push("limpeza"); console.error("[discord] limpeza", error); await alertError("Limpeza de mensagens falhou", error, now); }
+  try { result.reminders = await sendReminders(cfg, now); } catch (error) { result.errors.push("lembretes"); console.error("[discord] lembretes", error); await alertError("Lembretes falharam", error, now); }
+  if ((result.cleanup?.failed ?? 0) > 0) await alertError("Não consegui apagar mensagens", `${result.cleanup!.failed} mensagem(ns) não foram apagadas. Confira se o bot tem a permissão Gerenciar Mensagens nos canais.`, now);
+  if ((result.reminders?.failed ?? 0) > 0) await alertError("Não consegui enviar lembretes", `${result.reminders!.failed} lembrete(s) falharam. Confira se o bot ainda enxerga o canal.`, now);
   return result;
 }
 
