@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { BuildPicker } from "@/components/build-picker";
 import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import { fetchWaitlists } from "@/lib/waitlist";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
@@ -42,6 +43,8 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   const refreshDiscord = useServerFn(refreshDiscordMessage);
   const [posting, setPosting] = useState<string | null>(null);
   const discordChannels = useDiscordChannels();
+  const eventIds = (events ?? []).map((e) => e.id);
+  const waitlists = useQuery({ queryKey: ["waitlists", eventIds.join(",")], queryFn: () => fetchWaitlists(eventIds), enabled: eventIds.length > 0, retry: false });
   const posted = useQuery({ queryKey: ["discord-posts"], queryFn: async () => {
     const { data, error } = await supabase.from("discord_posts").select("event_id");
     if (error) throw error;
@@ -71,14 +74,27 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     void refreshDiscord({ data: { eventId } }).catch(() => undefined);
   }
   async function clearSignups(e: GameEvent) {
-    if (e.signups.length === 0) return;
-    if (!confirm(`Limpar os ${e.signups.length} pings de "${e.title}"? As armas e vagas continuam, só os jogadores saem.`)) return;
+    const queued = waitlists.data?.get(e.id)?.length ?? 0;
+    if (e.signups.length === 0 && queued === 0) return;
+    if (!confirm(`Limpar os ${e.signups.length} pings${queued ? ` e a fila de espera (${queued})` : ""} de "${e.title}"? As armas e vagas continuam, só os jogadores saem.`)) return;
+    // A fila sai primeiro: senão cada ping removido promoveria alguém da fila para a vaga.
+    if (queued) {
+      const { error: queueError } = await supabase.from("waitlist").delete().eq("event_id", e.id);
+      if (queueError) { toast.error("Não foi possível limpar a fila de espera."); return; }
+    }
     const { error } = await supabase.from("signups").delete().eq("event_id", e.id);
     if (error) { toast.error("Não foi possível limpar os pings."); return; }
     toast.success("Pings limpos. O conteúdo está pronto para ser usado de novo.");
     qc.invalidateQueries({ queryKey: ["managed-events"] });
     qc.invalidateQueries({ queryKey: ["events"] });
+    qc.invalidateQueries({ queryKey: ["waitlists"] });
     void refreshDiscord({ data: { eventId: e.id } }).catch(() => undefined);
+  }
+  async function removeQueued(id: string, eventId: string) {
+    const { error } = await supabase.from("waitlist").delete().eq("id", id);
+    if (error) { toast.error("Não foi possível tirar da fila."); return; }
+    qc.invalidateQueries({ queryKey: ["waitlists"] });
+    void refreshDiscord({ data: { eventId } }).catch(() => undefined);
   }
   /** Abre o editor com uma cópia: sem pings, sem horário (para escolher o novo) e salva como conteúdo novo. */
   function duplicate(e: GameEvent) {
@@ -129,7 +145,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                 <Button size="sm" variant="outline" asChild><Link to="/evento/$id" params={{ id: e.id }}>Ver</Link></Button>
                 <Button size="sm" variant="secondary" onClick={() => edit(e)}>Editar</Button>
                 <Button size="sm" variant="outline" onClick={() => duplicate(e)}>Duplicar</Button>
-                <Button size="sm" variant="outline" disabled={e.signups.length === 0} onClick={() => void clearSignups(e)}>Limpar pings</Button>
+                <Button size="sm" variant="outline" disabled={e.signups.length === 0 && !(waitlists.data?.get(e.id)?.length)} onClick={() => void clearSignups(e)}>Limpar pings</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button size="sm" variant="outline" disabled={posting === e.id}>{posting === e.id ? "Enviando..." : posted.data?.has(e.id) ? "Atualizar no Discord" : "Postar no Discord"}</Button></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -159,6 +175,17 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                 );
               })}
             </div>
+            {(waitlists.data?.get(e.id)?.length ?? 0) > 0 && (
+              <div className="mt-4 rounded-md border border-dashed border-border p-3 text-sm">
+                <p className="font-semibold">Fila de espera ({waitlists.data!.get(e.id)!.length})</p>
+                {waitlists.data!.get(e.id)!.map((q, i) => (
+                  <div key={q.id} className="mt-1 flex items-center justify-between">
+                    <span>{i + 1}. {q.nick} <span className="text-muted-foreground">· {e.event_weapons.find((w) => w.id === q.weapon_id)?.name ?? "arma"}</span></span>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void removeQueued(q.id, e.id)}>tirar da fila</Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

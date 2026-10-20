@@ -12,6 +12,7 @@ type Row = {
   mode: string | null; caller_name: string | null; content_type: string | null;
   event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null; icon_path?: string | null; role?: string | null }[];
   signups: { id: string; nick: string; weapon_id: string; created_at: string }[];
+  waitlist?: { nick: string; weapon_id: string }[];
 };
 
 export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined; appId?: string | undefined };
@@ -35,7 +36,13 @@ export async function loadEvent(id: string): Promise<Row | null> {
   // Migração 0009 (coluna role) ainda não rodada: segue sem a função, para o bot continuar funcionando.
   if (isMissingRoleColumn(error)) ({ data, error } = await query("id,name,slots,position,icon_code,icon_path"));
   if (error) throw error;
-  return (data as unknown as Row | null) ?? null;
+  const row = (data as unknown as Row | null) ?? null;
+  if (row) {
+    // Fila de espera (migração 0011): se a tabela ainda não existe, o card só não mostra a fila.
+    const queue = await anonClient().from("waitlist").select("nick,weapon_id").eq("event_id", id).order("created_at");
+    if (!queue.error) row.waitlist = queue.data ?? [];
+  }
+  return row;
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
@@ -158,6 +165,11 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
       const e = emojiOf(w);
       return { name: clip(`${e ? `${emojiTag(e)} ` : ""}${w.name}${roleLabel(w.role) ? ` · ${roleLabel(w.role)}` : ""} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
     }),
+    ...(event.waitlist?.length ? [{
+      name: `Fila de espera (${event.waitlist.length})`,
+      value: clip(`${event.waitlist.slice(0, 10).map((q, i) => `${i + 1}. ${safeNick(q.nick)}`).join("\n")}${event.waitlist.length > 10 ? `\n+${event.waitlist.length - 10}…` : ""}`, 1024),
+      inline: false,
+    }] : []),
   ];
   const description = [info, event.description ? clip(event.description, 600) : ""].filter(Boolean).join("\n\n");
 

@@ -393,6 +393,15 @@ export type Database = {
         }
         Relationships: []
       }
+      waitlist: {
+        Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }
+        Insert: { created_at?: string; event_id: string; id?: string; nick: string; weapon_id: string }
+        Update: { created_at?: string; event_id?: string; id?: string; nick?: string; weapon_id?: string }
+        Relationships: [
+          { foreignKeyName: "waitlist_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+          { foreignKeyName: "waitlist_weapon_id_fkey"; columns: ["weapon_id"]; isOneToOne: false; referencedRelation: "event_weapons"; referencedColumns: ["id"] },
+        ]
+      }
       signups: {
         Row: {
           created_at: string
