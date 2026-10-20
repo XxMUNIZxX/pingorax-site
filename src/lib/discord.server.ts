@@ -259,7 +259,8 @@ export async function editEventMessage(event: Row, channelId: string, messageId:
 export const CLEANUP_GRACE_MINUTES = 60;
 const CLEANUP_WINDOW_HOURS = 24;
 const CLEANUP_MAX_PER_RUN = 40;
-let lastCleanup = 0;
+let lastMaintenance = 0;
+export const REMINDER_MINUTES = 20;
 
 /** Apaga a mensagem no Discord. `true` se apagou ou se ela já não existia; lança erro nos demais casos (ex.: sem permissão). */
 export async function deleteDiscordMessage(channelId: string, messageId: string, cfg: DiscordConfig): Promise<boolean> {
@@ -285,8 +286,6 @@ export function cleanupRange(now: number, graceMinutes = CLEANUP_GRACE_MINUTES) 
 /** Remove do canal as mensagens dos conteúdos que já passaram. Seguro de chamar várias vezes (apagar o que já sumiu não faz mal). */
 export async function cleanupExpiredPosts(cfg: DiscordConfig, now = Date.now()): Promise<{ checked: number; removed: number; failed: number; skipped?: true }> {
   if (!cfg.botToken) return { checked: 0, removed: 0, failed: 0, skipped: true };
-  if (now - lastCleanup < 60_000) return { checked: 0, removed: 0, failed: 0, skipped: true };
-  lastCleanup = now;
   const grace = Number(serverEnv("DISCORD_CLEANUP_MINUTES"));
   const { newest, oldest } = cleanupRange(now, Number.isFinite(grace) && grace >= 0 && serverEnv("DISCORD_CLEANUP_MINUTES") ? grace : CLEANUP_GRACE_MINUTES);
   const { data, error } = await anonClient().from("discord_posts")
@@ -301,6 +300,62 @@ export async function cleanupExpiredPosts(cfg: DiscordConfig, now = Date.now()):
     catch (err) { failed++; console.error("[discord] limpeza", row.event_id, err); }
   }
   return { checked: rows.length, removed, failed };
+}
+
+// ---- Lembrete: avisa no canal quando o conteúdo está perto de começar ----
+/** Texto do lembrete (puro, para teste). */
+export function reminderText(event: Row): string {
+  const unix = Math.floor(new Date(event.starts_at).getTime() / 1000);
+  const total = event.signups.length;
+  const free = Math.max(0, event.max_players - total);
+  const nicks = event.signups.map((s) => safeNick(s.nick));
+  return [
+    `⏰ **${clip(safeNick(event.title), 150)}** começa <t:${unix}:R>!`,
+    `${total}/${event.max_players} jogadores${free ? ` — ainda tem ${free} ${free === 1 ? "vaga" : "vagas"}, corre pingar.` : " — lotado."}`,
+    nicks.length ? `Confirmados: ${clip(nicks.join(", "), 1200)}` : "",
+    `${SHARE_ORIGIN}/evento/${event.id}`,
+  ].filter(Boolean).join("\n");
+}
+
+/** Manda o lembrete dos conteúdos que começam em breve (uma vez por conteúdo). Sem a migração 0010 não faz nada. */
+export async function sendReminders(cfg: DiscordConfig, now = Date.now()): Promise<{ sent: number; failed: number; skipped?: true }> {
+  if (!cfg.botToken) return { sent: 0, failed: 0, skipped: true };
+  const lead = Number(serverEnv("DISCORD_REMINDER_MINUTES"));
+  const minutes = serverEnv("DISCORD_REMINDER_MINUTES") && Number.isFinite(lead) && lead > 0 ? Math.min(lead, 30) : REMINDER_MINUTES;
+  const { data, error } = await anonClient().from("discord_posts")
+    .select("event_id,channel_id,message_id,events!inner(starts_at)").is("reminded_at", null)
+    .gt("events.starts_at", new Date(now).toISOString()).lte("events.starts_at", new Date(now + minutes * 60_000).toISOString()).limit(20);
+  if (error) {
+    if (/reminded_at/.test(`${error.message} ${error.details ?? ""}`)) return { sent: 0, failed: 0, skipped: true };
+    throw error;
+  }
+  let sent = 0; let failed = 0;
+  for (const row of (data ?? []) as unknown as { event_id: string; channel_id: string; message_id: string }[]) {
+    try {
+      const { data: claimed, error: claimError } = await anonClient().rpc("discord_claim_reminder", { p_event: row.event_id });
+      if (claimError) throw claimError;
+      if (!claimed) continue;
+      const event = await loadEvent(row.event_id);
+      if (!event) continue;
+      await sendRawMessage(row.channel_id, cfg, {
+        content: reminderText(event),
+        message_reference: { message_id: row.message_id, fail_if_not_exists: false },
+        allowed_mentions: { parse: [] as string[] },
+      });
+      sent++;
+    } catch (err) { failed++; console.error("[discord] lembrete", row.event_id, err); }
+  }
+  return { sent, failed };
+}
+
+/** Tarefas periódicas do bot (cron e reforço a cada interação): limpa o que passou e manda lembretes. No máximo 1x por minuto. */
+export async function discordMaintenance(cfg: DiscordConfig, now = Date.now()) {
+  if (now - lastMaintenance < 60_000) return { skipped: true as const };
+  lastMaintenance = now;
+  const result: { cleanup?: Awaited<ReturnType<typeof cleanupExpiredPosts>>; reminders?: Awaited<ReturnType<typeof sendReminders>>; errors: string[] } = { errors: [] };
+  try { result.cleanup = await cleanupExpiredPosts(cfg, now); } catch (error) { result.errors.push("limpeza"); console.error("[discord] limpeza", error); }
+  try { result.reminders = await sendReminders(cfg, now); } catch (error) { result.errors.push("lembretes"); console.error("[discord] lembretes", error); }
+  return result;
 }
 
 const hex = (value: string) => Uint8Array.from(value.match(/../g)?.map((b) => parseInt(b, 16)) ?? []);
@@ -440,8 +495,8 @@ async function removeCommand(body: Interaction) {
 
 export async function handleInteraction(body: Interaction) {
   if (body.type === 1) return { type: 1 };
-  // Aproveita cada interação para limpar conteúdos vencidos (reforço do agendamento; no máximo 1x por minuto).
-  void runLater(cleanupExpiredPosts(discordConfig()).catch((error) => console.error("[discord] limpeza", error)));
+  // Aproveita cada interação para limpar conteúdos vencidos e mandar lembretes (reforço do agendamento; no máximo 1x por minuto).
+  void runLater(discordMaintenance(discordConfig()));
 
   // Autocomplete do /build (type 4): devolve até 25 nomes.
   if (body.type === 4 && body.data?.name === "build") {

@@ -209,18 +209,21 @@ export type Database = {
           created_at: string
           event_id: string
           message_id: string
+          reminded_at: string | null
         }
         Insert: {
           channel_id: string
           created_at?: string
           event_id: string
           message_id: string
+          reminded_at?: string | null
         }
         Update: {
           channel_id?: string
           created_at?: string
           event_id?: string
           message_id?: string
+          reminded_at?: string | null
         }
         Relationships: [
           {
@@ -497,6 +500,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      discord_claim_reminder: {
+        Args: { p_event: string }
+        Returns: boolean
+      }
       discord_leave: {
         Args: { p_event: string; p_discord_user: string }
         Returns: number

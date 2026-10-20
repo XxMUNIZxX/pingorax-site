@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildMessage, canManageMessages, cleanupRange, deleteDiscordMessage } from "@/lib/discord.server";
+import { buildMessage, canManageMessages, cleanupRange, deleteDiscordMessage, reminderText } from "@/lib/discord.server";
 
 const cfg = { botToken: "token" };
 const event = (weapons: number) => ({
@@ -58,5 +58,19 @@ describe("apagar mensagem no Discord", () => {
   it("avisa quando o bot não tem permissão", async () => {
     stub(403);
     await expect(deleteDiscordMessage("123456", "654321", cfg)).rejects.toThrow("403");
+  });
+});
+
+describe("lembrete", () => {
+  it("avisa quanto falta, as vagas livres e o link", () => {
+    const text = reminderText({ ...event(2), signups: [{ id: "s1", nick: "Ana", weapon_id: "w0", created_at: "" }] });
+    expect(text).toContain("<t:1792526400:R>");
+    expect(text).toContain("1/20 jogadores — ainda tem 19 vagas");
+    expect(text).toContain("Confirmados: Ana");
+    expect(text).toContain("/evento/11111111-1111-4111-8111-111111111111");
+  });
+  it("não deixa nick virar menção", () => {
+    const text = reminderText({ ...event(1), signups: [{ id: "s1", nick: "@everyone", weapon_id: "w0", created_at: "" }] });
+    expect(text).toContain("\\@everyone");
   });
 });
