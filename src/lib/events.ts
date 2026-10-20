@@ -68,6 +68,14 @@ export async function fetchManagedEvents(): Promise<GameEvent[]> {
   return withIcons((data ?? []) as unknown as GameEvent[]);
 }
 
+/** Conteúdos pelos ids (ex.: os de uma guilda), do mais próximo para o mais distante. */
+export async function fetchEventsByIds(ids: string[]): Promise<GameEvent[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await withRoleFallback((select) => supabase.from("events").select(select).in("id", ids).order("starts_at"));
+  if (error) throw error;
+  return withIcons((data ?? []) as unknown as GameEvent[]);
+}
+
 export async function fetchEvent(id: string): Promise<GameEvent | null> {
   const { data, error } = await withRoleFallback((select) => supabase.from("events").select(select).eq("id", id).maybeSingle());
   if (error) throw error;
@@ -79,4 +87,11 @@ export function formatDate(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
     weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   });
+}
+
+/** Horários das repetições semanais: o mesmo dia da semana e hora, de 1 a `extra` semanas depois (no máximo 12). */
+export function weeklyStarts(startIso: string, extra: number): string[] {
+  const n = Math.min(Math.max(0, Math.floor(extra) || 0), 12);
+  const start = new Date(startIso).getTime();
+  return Array.from({ length: n }, (_, i) => new Date(start + (i + 1) * 7 * 24 * 3600 * 1000).toISOString());
 }

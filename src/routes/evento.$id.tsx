@@ -16,6 +16,8 @@ import { refreshDiscordMessage } from "@/lib/discord.functions";
 import { BuildGear } from "@/components/build-view";
 import { roleInfo } from "@/lib/weapon-roles";
 import { fetchWaitlist } from "@/lib/waitlist";
+import { copyText, eventInviteText } from "@/lib/share-text";
+import { SHARE_ORIGIN } from "@/lib/share-image";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
@@ -154,7 +156,13 @@ function EventPage() {
           <h1 className="text-3xl font-extrabold md:text-4xl">{ev.title}</h1>
           {ev.caller_name && <p className="text-lg text-gold font-medium mt-1">Caller: {ev.caller_name}</p>}
         </div>
-        <ShareButton title={ev.title} />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" type="button" onClick={async () => {
+            const ok = await copyText(eventInviteText(ev, SHARE_ORIGIN, formatDate(ev.starts_at)));
+            if (ok) toast.success("Convite copiado! Cole no Discord."); else toast.error("Não consegui copiar o convite.");
+          }}>Copiar convite</Button>
+          <ShareButton title={ev.title} />
+        </div>
       </div>
       {ev.description && <p className="mt-2 whitespace-pre-line text-muted-foreground">{ev.description}</p>}
        <p className="mt-3 text-lg"><span className="font-bold text-primary">{ev.signups.length}</span> / {ev.max_players} jogadores</p>
