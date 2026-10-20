@@ -80,3 +80,10 @@ export function formatDate(iso: string) {
     weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   });
 }
+
+/** Horários das repetições semanais: o mesmo dia da semana e hora, de 1 a `extra` semanas depois (no máximo 12). */
+export function weeklyStarts(startIso: string, extra: number): string[] {
+  const n = Math.min(Math.max(0, Math.floor(extra) || 0), 12);
+  const start = new Date(startIso).getTime();
+  return Array.from({ length: n }, (_, i) => new Date(start + (i + 1) * 7 * 24 * 3600 * 1000).toISOString());
+}

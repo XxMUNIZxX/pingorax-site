@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ALBION_WEAPONS, fetchManagedEvents, formatDate, type GameEvent } from "@/lib/events";
+import { ALBION_WEAPONS, fetchManagedEvents, formatDate, weeklyStarts, type GameEvent } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,13 +25,14 @@ import { fetchWaitlists } from "@/lib/waitlist";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
-type Draft = { id?: string; copyOf?: string; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
+type Draft = { id?: string; copyOf?: string; repeat?: number; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
   const d = new Date(iso);
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
+const MAX_REPEAT_WEEKS = 12;
 const newUid = () => Math.random().toString(36).slice(2, 10);
 const emptyDraft = (): Draft => ({ title: "", description: "", starts_at: "", max_players: 20, weapons: [{ uid: newUid(), name: "Cajado Sagrado", slots: 2 }], mode: null, caller_name: null, content_type: null });
 
@@ -239,8 +240,10 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
       if (error) throw error;
     }
     let roleSkipped = false;
+    const iconPaths: (string | null)[] = [];
     for (const [i, w] of draft.weapons.entries()) {
       const iconPath = w.iconFile ? await uploadWeaponIcon(w.iconFile) : w.icon_path ?? null;
+      iconPaths[i] = iconPath;
       const row = { event_id: eventId, name: w.name, slots: Math.max(1, w.slots), position: i, icon_path: iconPath, icon_code: iconPath ? null : w.icon_code ?? null, build_id: w.build_id ?? null };
       const send = (r: typeof row & { role?: string | null }) => (w.id ? supabase.from("event_weapons").update(r).eq("id", w.id) : supabase.from("event_weapons").insert(r));
       let { error } = await send({ ...row, role: w.role ?? null });
@@ -251,7 +254,20 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
       }
       if (error) throw error;
     }
-    toast.success("Conteúdo salvo");
+    // Repetição semanal (só em conteúdo novo): cria as próximas semanas já com as mesmas armas.
+    const extra = !draft.id ? Math.min(Math.max(0, Math.floor(draft.repeat ?? 0)), MAX_REPEAT_WEEKS) : 0;
+    let created = 0;
+    for (const [index, startsAt] of weeklyStarts(payload.starts_at, extra).entries()) {
+      const k = index + 1;
+      const { data: copy, error: copyError } = await supabase.from("events").insert({ ...payload, starts_at: startsAt }).select("id").single();
+      if (copyError || !copy) { toast.error(`Criei ${created + 1} de ${extra + 1} conteúdos: a repetição parou na semana ${k + 1}.`); break; }
+      const rows = draft.weapons.map((w, i) => ({ event_id: copy.id, name: w.name, slots: Math.max(1, w.slots), position: i, icon_path: iconPaths[i] ?? null, icon_code: iconPaths[i] ? null : w.icon_code ?? null, build_id: w.build_id ?? null }));
+      let { error: rowsError } = await supabase.from("event_weapons").insert(rows.map((r, i) => ({ ...r, role: draft.weapons[i]?.role ?? null })));
+      if (rowsError && isMissingRoleColumn(rowsError)) ({ error: rowsError } = await supabase.from("event_weapons").insert(rows));
+      if (rowsError) { toast.error("Uma das semanas foi criada sem armas. Confira a lista."); break; }
+      created++;
+    }
+    toast.success(extra > 0 ? `${created + 1} conteúdos salvos (um por semana)` : "Conteúdo salvo");
     if (roleSkipped) toast.warning("As funções não foram salvas: falta rodar a migração 0009 no Supabase.");
     void refreshDiscord({ data: { eventId } }).catch(() => undefined);
     onSaved();
@@ -292,6 +308,19 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
           <Label htmlFor="content-caller">Caller / líder</Label>
           <Input id="content-caller" maxLength={80} placeholder="Nome do Caller" value={draft.caller_name || ""} onChange={(e) => set({ caller_name: e.target.value })} />
         </div>
+        {!draft.id && (
+          <div className="space-y-1">
+            <Label htmlFor="content-repeat">Repetir</Label>
+            <Select value={String(draft.repeat ?? 0)} onValueChange={(v) => set({ repeat: Number(v) })}>
+              <SelectTrigger id="content-repeat"><SelectValue placeholder="Não repetir" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Não repetir</SelectItem>
+                {[1, 2, 3, 4, 7, 11].map((n) => <SelectItem key={n} value={String(n)}>Toda semana, +{n} {n === 1 ? "semana" : "semanas"}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(draft.repeat ?? 0) > 0 && <p className="text-xs text-muted-foreground">Cria {(draft.repeat ?? 0) + 1} conteúdos no mesmo dia da semana e horário, cada um com as mesmas armas.</p>}
+          </div>
+        )}
         <div className="space-y-2 md:col-span-3"><Label htmlFor="content-description">Descrição (opcional)</Label><Textarea id="content-description" placeholder="Requisitos, IP mínimo, ponto de encontro..." value={draft.description} onChange={(e) => set({ description: e.target.value })} /></div>
       </div>
 
