@@ -23,11 +23,14 @@ import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/we
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { fetchWaitlists } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
+import { GuildPanel, useMyGuilds } from "@/components/guild-panel";
+import { fetchEventGuildId } from "@/lib/guilds";
+import { fetchAttendance, markAttendance, summarizeAttendance } from "@/lib/attendance";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
-type Draft = { id?: string; copyOf?: string; repeat?: number; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
+type Draft = { id?: string; copyOf?: string; repeat?: number; guild_id?: string | null; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
   const d = new Date(iso);
@@ -48,6 +51,15 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   const discordChannels = useDiscordChannels();
   const eventIds = (events ?? []).map((e) => e.id);
   const waitlists = useQuery({ queryKey: ["waitlists", eventIds.join(",")], queryFn: () => fetchWaitlists(eventIds), enabled: eventIds.length > 0, retry: false });
+  const attendanceQuery = useQuery({ queryKey: ["attendance", eventIds.join(",")], queryFn: () => fetchAttendance(eventIds), enabled: eventIds.length > 0, retry: false });
+  const attendance = attendanceQuery.data ?? null;  // null = migração 0012 ainda não rodada
+  const attendanceKey = (eventId: string, nick: string) => `${eventId}|${nick.trim().toLowerCase()}`;
+  const marks = new Map((attendance ?? []).map((row) => [attendanceKey(row.event_id, row.nick), row.present] as const));
+  const playerStats = attendance ? summarizeAttendance(events ?? [], attendance) : [];
+  async function setPresence(rows: { event_id: string; nick: string; present: boolean }[]) {
+    try { await markAttendance(rows); qc.invalidateQueries({ queryKey: ["attendance"] }); }
+    catch { toast.error("Não foi possível salvar a presença."); }
+  }
   const posted = useQuery({ queryKey: ["discord-posts"], queryFn: async () => {
     const { data, error } = await supabase.from("discord_posts").select("event_id");
     if (error) throw error;
@@ -105,6 +117,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   }
   /** Abre o editor com uma cópia: sem pings, sem horário (para escolher o novo) e salva como conteúdo novo. */
   function duplicate(e: GameEvent) {
+    void fetchEventGuildId(e.id).then((guild_id) => setDraft((d) => (d && !d.id && d.copyOf === e.title ? { ...d, guild_id } : d)));
     setDraft({
       copyOf: e.title, title: `${e.title} (cópia)`.slice(0, 120), description: e.description ?? "", starts_at: "", max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
       weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
@@ -112,6 +125,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function edit(e: GameEvent) {
+    void fetchEventGuildId(e.id).then((guild_id) => setDraft((d) => (d?.id === e.id ? { ...d, guild_id } : d)));
     setDraft({
       id: e.id, title: e.title, description: e.description ?? "", starts_at: toLocalInput(e.starts_at), max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
       weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), id: w.id, role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
@@ -131,8 +145,24 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
       <p className="mt-4 text-sm text-muted-foreground">{isAdmin ? "Todos os conteúdos" : "Meus conteúdos e compartilhados comigo"}</p>
 
       <DiscordPanel isAdmin={isAdmin} />
+      <GuildPanel userId={userId} canCreate={canCreate} />
 
-      {draft && <EventEditor draft={draft} setDraft={setDraft} onSaved={() => { setDraft(null); qc.invalidateQueries({ queryKey: ["managed-events"] }); qc.invalidateQueries({ queryKey: ["events"] }); }} />}
+      {attendance && playerStats.length > 0 && (
+        <details className="panel mt-6 p-4">
+          <summary className="cursor-pointer font-semibold">Presença dos jogadores <span className="text-sm font-normal text-muted-foreground">({playerStats.length})</span></summary>
+          <p className="mt-2 text-xs text-muted-foreground">Conta só conteúdos que já aconteceram. A taxa considera apenas o que você marcou como presente ou falta.</p>
+          <div className="mt-3 max-h-80 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-muted-foreground"><tr><th className="py-1">Jogador</th><th>Pingou</th><th>Veio</th><th>Faltou</th><th>Taxa</th></tr></thead>
+              <tbody>{playerStats.slice(0, 100).map((p) => (
+                <tr key={p.nick.toLowerCase()} className="border-t border-border"><td className="py-1 pr-2">{p.nick}</td><td>{p.signed}</td><td>{p.present}</td><td>{p.absent}</td><td>{p.rate === null ? "—" : `${Math.round(p.rate * 100)}%`}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
+      {draft && <EventEditor userId={userId} draft={draft} setDraft={setDraft} onSaved={() => { setDraft(null); qc.invalidateQueries({ queryKey: ["managed-events"] }); qc.invalidateQueries({ queryKey: ["events"] }); }} />}
 
       <div className="mt-8 space-y-4">
         {isPending && <p className="text-muted-foreground">Carregando conteúdos...</p>}
@@ -173,16 +203,31 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                   <div key={w.id} className="rounded-md border border-border p-3 text-sm">
                     <div className="flex items-center gap-2 font-semibold">{w.icon_url && <img src={w.icon_url} alt="" className="h-10 w-10 shrink-0 object-contain" />}<span className="min-w-0 break-words">{w.name} <span className="text-muted-foreground">({list.length}/{w.slots})</span></span></div>
                     {roleInfo(w.role) && <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${roleInfo(w.role)!.className}`}>{roleInfo(w.role)!.label}</span>}
-                    {list.map((s) => (
-                      <div key={s.id} className="mt-1 flex items-center justify-between">
-                        <span>{s.nick}</span>
-                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSignup(s.id, e.id)}>remover</Button>
-                      </div>
-                    ))}
+                    {list.map((s) => {
+                      const mark = marks.get(attendanceKey(e.id, s.nick));
+                      return (
+                        <div key={s.id} className="mt-1 flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-2">
+                            {attendance && new Date(e.starts_at).getTime() <= Date.now() && (
+                              <input type="checkbox" className="size-4 shrink-0 accent-primary" checked={mark === true} aria-label={`${s.nick} compareceu`} title={mark === false ? "Marcado como falta" : "Marcar presença"}
+                                onChange={() => void setPresence([{ event_id: e.id, nick: s.nick, present: mark !== true }])} />
+                            )}
+                            <span className={`break-words ${mark === false ? "text-muted-foreground line-through" : ""}`}>{s.nick}</span>
+                          </span>
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSignup(s.id, e.id)}>remover</Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
+            {attendance && e.signups.length > 0 && new Date(e.starts_at).getTime() <= Date.now() && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>Conteúdo já realizado:</span>
+                <Button size="sm" variant="outline" onClick={() => void setPresence(e.signups.map((s) => ({ event_id: e.id, nick: s.nick, present: true })))}>Marcar todos presentes</Button>
+              </div>
+            )}
             {(waitlists.data?.get(e.id)?.length ?? 0) > 0 && (
               <div className="mt-4 rounded-md border border-dashed border-border p-3 text-sm">
                 <p className="font-semibold">Fila de espera ({waitlists.data!.get(e.id)!.length})</p>
@@ -201,10 +246,11 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   );
 }
 
-function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
+function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const refreshDiscord = useServerFn(refreshDiscordMessage);
   const options = useContentOptions();
+  const myGuilds = useMyGuilds(userId).data ?? null;  // null = migração 0013 não rodada
   const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
   const modeList = withCurrentValue(options.modes, draft.mode);
   const typeList = withCurrentValue(options.types, draft.content_type);
@@ -227,7 +273,7 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
     if (!draft.title || !draft.starts_at || draft.weapons.length === 0) { toast.error("Preencha título, horário e ao menos uma arma"); return; }
     setSaving(true);
     try {
-    const payload = { title: draft.title, description: draft.description || null, starts_at: new Date(draft.starts_at).toISOString(), max_players: draft.max_players, mode: draft.mode || null, caller_name: draft.caller_name?.trim() || null, content_type: draft.content_type || null };
+    const payload = { title: draft.title, description: draft.description || null, starts_at: new Date(draft.starts_at).toISOString(), max_players: draft.max_players, mode: draft.mode || null, caller_name: draft.caller_name?.trim() || null, content_type: draft.content_type || null, ...(myGuilds && draft.guild_id !== undefined ? { guild_id: draft.guild_id } : {}) };
     let eventId = draft.id;
     if (eventId) {
       const { data, error } = await supabase.from("events").update(payload).eq("id", eventId).select("id").maybeSingle();
@@ -315,6 +361,20 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
           <Label htmlFor="content-caller">Caller / líder</Label>
           <Input id="content-caller" maxLength={80} placeholder="Nome do Caller" value={draft.caller_name || ""} onChange={(e) => set({ caller_name: e.target.value })} />
         </div>
+        {myGuilds && (myGuilds.length > 0 || draft.guild_id) && (
+          <div className="space-y-1">
+            <Label htmlFor="content-guild">Guilda</Label>
+            <Select value={draft.guild_id ?? "none"} onValueChange={(v) => set({ guild_id: v === "none" ? null : v })}>
+              <SelectTrigger id="content-guild"><SelectValue placeholder="Sem guilda" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem guilda</SelectItem>
+                {myGuilds.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                {draft.guild_id && !myGuilds.some((g) => g.id === draft.guild_id) && <SelectItem value={draft.guild_id}>Outra guilda (atual)</SelectItem>}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Aparece na página pública da guilda.</p>
+          </div>
+        )}
         {!draft.id && (
           <div className="space-y-1">
             <Label htmlFor="content-repeat">Repetir</Label>

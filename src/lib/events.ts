@@ -68,6 +68,14 @@ export async function fetchManagedEvents(): Promise<GameEvent[]> {
   return withIcons((data ?? []) as unknown as GameEvent[]);
 }
 
+/** Conteúdos pelos ids (ex.: os de uma guilda), do mais próximo para o mais distante. */
+export async function fetchEventsByIds(ids: string[]): Promise<GameEvent[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await withRoleFallback((select) => supabase.from("events").select(select).in("id", ids).order("starts_at"));
+  if (error) throw error;
+  return withIcons((data ?? []) as unknown as GameEvent[]);
+}
+
 export async function fetchEvent(id: string): Promise<GameEvent | null> {
   const { data, error } = await withRoleFallback((select) => supabase.from("events").select(select).eq("id", id).maybeSingle());
   if (error) throw error;
