@@ -20,9 +20,10 @@ import { DiscordPanel, useDiscordChannels } from "@/components/discord-panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BuildPicker } from "@/components/build-picker";
 import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/weapon-catalog";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
-type WeaponDraft = { id?: string; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
+type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
 type Draft = { id?: string; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
@@ -30,7 +31,8 @@ const toLocalInput = (iso: string) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
-const emptyDraft = (): Draft => ({ title: "", description: "", starts_at: "", max_players: 20, weapons: [{ name: "Cajado Sagrado", slots: 2 }], mode: null, caller_name: null, content_type: null });
+const newUid = () => Math.random().toString(36).slice(2, 10);
+const emptyDraft = (): Draft => ({ title: "", description: "", starts_at: "", max_players: 20, weapons: [{ uid: newUid(), name: "Cajado Sagrado", slots: 2 }], mode: null, caller_name: null, content_type: null });
 
 export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; isAdmin: boolean; canCreate: boolean }) {
   const qc = useQueryClient();
@@ -71,7 +73,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   function edit(e: GameEvent) {
     setDraft({
       id: e.id, title: e.title, description: e.description ?? "", starts_at: toLocalInput(e.starts_at), max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
-      weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ id: w.id, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
+      weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), id: w.id, role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
     });
   }
 
@@ -126,6 +128,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                 return (
                   <div key={w.id} className="rounded-md border border-border p-3 text-sm">
                     <div className="flex items-center gap-2 font-semibold">{w.icon_url && <img src={w.icon_url} alt="" className="h-10 w-10 shrink-0 object-contain" />}<span className="min-w-0 break-words">{w.name} <span className="text-muted-foreground">({list.length}/{w.slots})</span></span></div>
+                    {roleInfo(w.role) && <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${roleInfo(w.role)!.className}`}>{roleInfo(w.role)!.label}</span>}
                     {list.map((s) => (
                       <div key={s.id} className="mt-1 flex items-center justify-between">
                         <span>{s.nick}</span>
@@ -188,13 +191,21 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
       const { error } = await supabase.from("event_weapons").delete().in("id", toDelete);
       if (error) throw error;
     }
+    let roleSkipped = false;
     for (const [i, w] of draft.weapons.entries()) {
       const iconPath = w.iconFile ? await uploadWeaponIcon(w.iconFile) : w.icon_path ?? null;
       const row = { event_id: eventId, name: w.name, slots: Math.max(1, w.slots), position: i, icon_path: iconPath, icon_code: iconPath ? null : w.icon_code ?? null, build_id: w.build_id ?? null };
-      const { error } = w.id ? await supabase.from("event_weapons").update(row).eq("id", w.id) : await supabase.from("event_weapons").insert(row);
+      const send = (r: typeof row & { role?: string | null }) => (w.id ? supabase.from("event_weapons").update(r).eq("id", w.id) : supabase.from("event_weapons").insert(r));
+      let { error } = await send({ ...row, role: w.role ?? null });
+      if (error && isMissingRoleColumn(error)) {
+        // Migração 0009 ainda não rodada: salva sem a função, para não perder o resto das alterações.
+        if (w.role) roleSkipped = true;
+        ({ error } = await send(row));
+      }
       if (error) throw error;
     }
     toast.success("Conteúdo salvo");
+    if (roleSkipped) toast.warning("As funções não foram salvas: falta rodar a migração 0009 no Supabase.");
     void refreshDiscord({ data: { eventId } }).catch(() => undefined);
     onSaved();
     } catch (error) {
@@ -245,17 +256,28 @@ function EventEditor({ draft, setDraft, onSaved }: { draft: Draft; setDraft: (d:
         <datalist id="weapons">{[...new Set([...(catalog.data ?? []).map((c) => c.name), ...ALBION_WEAPONS])].map((w) => <option key={w} value={w} />)}</datalist>
         <div className="mt-2 space-y-2">
           {draft.weapons.map((w, i) => (
-             <div key={i} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
+             <div key={w.uid ?? w.id ?? i} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
+              <div className="flex shrink-0 flex-col">
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-8" disabled={i === 0} aria-label={`Subir arma ${i + 1}`} title="Subir" onClick={() => set({ weapons: moveItem(draft.weapons, i, -1) })}><ChevronUp className="size-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-8" disabled={i === draft.weapons.length - 1} aria-label={`Descer arma ${i + 1}`} title="Descer" onClick={() => set({ weapons: moveItem(draft.weapons, i, 1) })}><ChevronDown className="size-4" /></Button>
+              </div>
               <WeaponCatalogPicker onPick={(weapon) => pickCatalog(i, weapon)} />
               <WeaponIconInput name={w.name} file={w.iconFile} url={previewUrl(w)} onChange={(file) => setW(i, { iconFile: file, icon_path: file ? w.icon_path : null, icon_url: file ? w.icon_url : null, icon_code: null })} />
               <Input list="weapons" className="min-w-0 flex-1 basis-40" aria-label={`Nome da arma ${i + 1}`} placeholder="Nome da arma" value={w.name} onChange={(e) => setName(i, e.target.value)} />
               <Input type="number" min={1} className="w-20 shrink-0" aria-label={`Vagas de ${w.name || "arma"}`} value={w.slots} onChange={(e) => setW(i, { slots: Number(e.target.value) })} />
+              <Select value={w.role ?? "none"} onValueChange={(v) => setW(i, { role: v === "none" ? null : v })}>
+                <SelectTrigger className="w-36 shrink-0" aria-label={`Função de ${w.name || "arma"}`}><SelectValue placeholder="Função" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem função</SelectItem>
+                  {WEAPON_ROLES.map((r) => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <BuildPicker value={w.build_id} weaponName={w.name} weaponCode={w.icon_code} onChange={(id) => setW(i, { build_id: id })} />
                <Button variant="ghost" size="icon" aria-label={`Remover arma ${i + 1}`} title={`Remover arma ${i + 1}`} onClick={() => set({ weapons: draft.weapons.filter((_, j) => j !== i) })}><X /></Button>
             </div>
           ))}
         </div>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => set({ weapons: [...draft.weapons, { name: "", slots: 1 }] })}><Plus /> Adicionar arma</Button>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => set({ weapons: [...draft.weapons, { uid: newUid(), name: "", slots: 1 }] })}><Plus /> Adicionar arma</Button>
       </div>
 
       <div className="flex justify-end gap-2">

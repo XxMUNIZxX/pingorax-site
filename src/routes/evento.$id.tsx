@@ -14,6 +14,7 @@ import { DEFAULT_SHARE_IMAGE } from "@/lib/share-image";
 import { useServerFn } from "@tanstack/react-start";
 import { refreshDiscordMessage } from "@/lib/discord.functions";
 import { BuildGear } from "@/components/build-view";
+import { roleInfo } from "@/lib/weapon-roles";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
@@ -172,6 +173,7 @@ function EventPage() {
                 {w.icon_url && <img src={w.icon_url} alt="" className="h-12 w-12 shrink-0 object-contain" />}
                 <div className="min-w-0 break-words">
                 <div className="font-display font-bold">{w.name}</div>
+                {roleInfo(w.role) && <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${roleInfo(w.role)!.className}`}>{roleInfo(w.role)!.label}</span>}
                  <div className={`mt-1 text-sm ${disabled ? "text-muted-foreground" : "text-success"}`}>{full ? "Conteúdo lotado" : left > 0 ? `${left} de ${w.slots} vagas disponíveis` : "Sem vagas"}</div>
                  {taken.length > 0 && <div className="mt-2 text-sm text-muted-foreground">Inscritos: {taken.map((t) => t.nick).join(", ")}</div>}
                 </div>

@@ -1217,3 +1217,8 @@ revoke all on function public.discord_signup(uuid, uuid, text, text) from public
 revoke all on function public.discord_leave(uuid, text) from public;
 grant execute on function public.discord_signup(uuid, uuid, text, text) to anon, authenticated;
 grant execute on function public.discord_leave(uuid, text) to anon, authenticated;
+
+-- Função de cada arma no conteúdo (migração 0009)
+alter table public.event_weapons
+  add column if not exists role text
+  check (role is null or role in ('tank', 'offtank', 'healer', 'support', 'dps_melee', 'dps_ranged'));

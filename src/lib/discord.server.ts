@@ -2,6 +2,7 @@ import { publicShareClient } from "@/lib/share-image.server";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { serverEnv } from "@/lib/server-env";
 import type { Server } from "@/lib/albion-types";
+import { isMissingRoleColumn, roleLabel } from "@/lib/weapon-roles";
 
 const API = "https://discord.com/api/v10";
 const COLOR = 0x5fd0e8;
@@ -9,7 +10,7 @@ const COLOR = 0x5fd0e8;
 type Row = {
   id: string; title: string; description: string | null; starts_at: string; max_players: number;
   mode: string | null; caller_name: string | null; content_type: string | null;
-  event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null; icon_path?: string | null }[];
+  event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null; icon_path?: string | null; role?: string | null }[];
   signups: { id: string; nick: string; weapon_id: string; created_at: string }[];
 };
 
@@ -27,11 +28,14 @@ export function anonClient() {
 }
 
 export async function loadEvent(id: string): Promise<Row | null> {
-  const { data, error } = await anonClient().from("events")
-    .select("id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(id,name,slots,position,icon_code,icon_path),signups(id,nick,weapon_id,created_at)")
+  const query = (cols: string) => anonClient().from("events")
+    .select(`id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(${cols}),signups(id,nick,weapon_id,created_at)`)
     .eq("id", id).maybeSingle();
+  let { data, error } = await query("id,name,slots,position,icon_code,icon_path,role");
+  // Migração 0009 (coluna role) ainda não rodada: segue sem a função, para o bot continuar funcionando.
+  if (isMissingRoleColumn(error)) ({ data, error } = await query("id,name,slots,position,icon_code,icon_path"));
   if (error) throw error;
-  return (data as Row | null) ?? null;
+  return (data as unknown as Row | null) ?? null;
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
@@ -152,7 +156,7 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
     ...weapons.slice(0, 20).map((w) => {
       const nicks = event.signups.filter((s) => s.weapon_id === w.id).map((s) => safeNick(s.nick));
       const e = emojiOf(w);
-      return { name: clip(`${e ? `${emojiTag(e)} ` : ""}${w.name} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
+      return { name: clip(`${e ? `${emojiTag(e)} ` : ""}${w.name}${roleLabel(w.role) ? ` · ${roleLabel(w.role)}` : ""} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
     }),
   ];
   const description = [info, event.description ? clip(event.description, 600) : ""].filter(Boolean).join("\n\n");
