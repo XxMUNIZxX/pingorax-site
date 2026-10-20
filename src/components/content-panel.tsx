@@ -23,6 +23,7 @@ import { catalogIconUrl, fetchWeaponCatalog, type CatalogWeapon } from "@/lib/we
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { fetchWaitlists } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
+import { fetchAttendance, markAttendance, summarizeAttendance } from "@/lib/attendance";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
@@ -48,6 +49,15 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   const discordChannels = useDiscordChannels();
   const eventIds = (events ?? []).map((e) => e.id);
   const waitlists = useQuery({ queryKey: ["waitlists", eventIds.join(",")], queryFn: () => fetchWaitlists(eventIds), enabled: eventIds.length > 0, retry: false });
+  const attendanceQuery = useQuery({ queryKey: ["attendance", eventIds.join(",")], queryFn: () => fetchAttendance(eventIds), enabled: eventIds.length > 0, retry: false });
+  const attendance = attendanceQuery.data ?? null;  // null = migração 0012 ainda não rodada
+  const attendanceKey = (eventId: string, nick: string) => `${eventId}|${nick.trim().toLowerCase()}`;
+  const marks = new Map((attendance ?? []).map((row) => [attendanceKey(row.event_id, row.nick), row.present] as const));
+  const playerStats = attendance ? summarizeAttendance(events ?? [], attendance) : [];
+  async function setPresence(rows: { event_id: string; nick: string; present: boolean }[]) {
+    try { await markAttendance(rows); qc.invalidateQueries({ queryKey: ["attendance"] }); }
+    catch { toast.error("Não foi possível salvar a presença."); }
+  }
   const posted = useQuery({ queryKey: ["discord-posts"], queryFn: async () => {
     const { data, error } = await supabase.from("discord_posts").select("event_id");
     if (error) throw error;
@@ -132,6 +142,21 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
 
       <DiscordPanel isAdmin={isAdmin} />
 
+      {attendance && playerStats.length > 0 && (
+        <details className="panel mt-6 p-4">
+          <summary className="cursor-pointer font-semibold">Presença dos jogadores <span className="text-sm font-normal text-muted-foreground">({playerStats.length})</span></summary>
+          <p className="mt-2 text-xs text-muted-foreground">Conta só conteúdos que já aconteceram. A taxa considera apenas o que você marcou como presente ou falta.</p>
+          <div className="mt-3 max-h-80 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-muted-foreground"><tr><th className="py-1">Jogador</th><th>Pingou</th><th>Veio</th><th>Faltou</th><th>Taxa</th></tr></thead>
+              <tbody>{playerStats.slice(0, 100).map((p) => (
+                <tr key={p.nick.toLowerCase()} className="border-t border-border"><td className="py-1 pr-2">{p.nick}</td><td>{p.signed}</td><td>{p.present}</td><td>{p.absent}</td><td>{p.rate === null ? "—" : `${Math.round(p.rate * 100)}%`}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
       {draft && <EventEditor draft={draft} setDraft={setDraft} onSaved={() => { setDraft(null); qc.invalidateQueries({ queryKey: ["managed-events"] }); qc.invalidateQueries({ queryKey: ["events"] }); }} />}
 
       <div className="mt-8 space-y-4">
@@ -173,16 +198,31 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
                   <div key={w.id} className="rounded-md border border-border p-3 text-sm">
                     <div className="flex items-center gap-2 font-semibold">{w.icon_url && <img src={w.icon_url} alt="" className="h-10 w-10 shrink-0 object-contain" />}<span className="min-w-0 break-words">{w.name} <span className="text-muted-foreground">({list.length}/{w.slots})</span></span></div>
                     {roleInfo(w.role) && <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${roleInfo(w.role)!.className}`}>{roleInfo(w.role)!.label}</span>}
-                    {list.map((s) => (
-                      <div key={s.id} className="mt-1 flex items-center justify-between">
-                        <span>{s.nick}</span>
-                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSignup(s.id, e.id)}>remover</Button>
-                      </div>
-                    ))}
+                    {list.map((s) => {
+                      const mark = marks.get(attendanceKey(e.id, s.nick));
+                      return (
+                        <div key={s.id} className="mt-1 flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-2">
+                            {attendance && new Date(e.starts_at).getTime() <= Date.now() && (
+                              <input type="checkbox" className="size-4 shrink-0 accent-primary" checked={mark === true} aria-label={`${s.nick} compareceu`} title={mark === false ? "Marcado como falta" : "Marcar presença"}
+                                onChange={() => void setPresence([{ event_id: e.id, nick: s.nick, present: mark !== true }])} />
+                            )}
+                            <span className={`break-words ${mark === false ? "text-muted-foreground line-through" : ""}`}>{s.nick}</span>
+                          </span>
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSignup(s.id, e.id)}>remover</Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
+            {attendance && e.signups.length > 0 && new Date(e.starts_at).getTime() <= Date.now() && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>Conteúdo já realizado:</span>
+                <Button size="sm" variant="outline" onClick={() => void setPresence(e.signups.map((s) => ({ event_id: e.id, nick: s.nick, present: true })))}>Marcar todos presentes</Button>
+              </div>
+            )}
             {(waitlists.data?.get(e.id)?.length ?? 0) > 0 && (
               <div className="mt-4 rounded-md border border-dashed border-border p-3 text-sm">
                 <p className="font-semibold">Fila de espera ({waitlists.data!.get(e.id)!.length})</p>

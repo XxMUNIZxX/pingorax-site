@@ -393,6 +393,14 @@ export type Database = {
         }
         Relationships: []
       }
+      attendance: {
+        Row: { event_id: string; marked_at: string; nick: string; present: boolean }
+        Insert: { event_id: string; marked_at?: string; nick: string; present: boolean }
+        Update: { event_id?: string; marked_at?: string; nick?: string; present?: boolean }
+        Relationships: [
+          { foreignKeyName: "attendance_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+        ]
+      }
       waitlist: {
         Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }
         Insert: { created_at?: string; event_id: string; id?: string; nick: string; weapon_id: string }

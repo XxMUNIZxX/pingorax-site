@@ -1338,3 +1338,28 @@ do $$ begin
   alter publication supabase_realtime add table public.waitlist;
 exception when duplicate_object or undefined_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Histórico de presença (migração 0012)
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.attendance (
+  event_id uuid not null references public.events(id) on delete cascade,
+  nick text not null check (char_length(trim(nick)) between 2 and 32),
+  present boolean not null,
+  marked_at timestamptz not null default now(),
+  primary key (event_id, nick)
+);
+grant select, insert, update, delete on public.attendance to authenticated;
+grant all on public.attendance to service_role;
+alter table public.attendance enable row level security;
+
+create policy "Editors read attendance" on public.attendance
+  for select to authenticated using (public.can_edit_event(event_id) or public.can_manage_event(event_id));
+create policy "Editors write attendance" on public.attendance
+  for insert to authenticated with check (public.can_edit_event(event_id) or public.can_manage_event(event_id));
+create policy "Editors change attendance" on public.attendance
+  for update to authenticated using (public.can_edit_event(event_id) or public.can_manage_event(event_id))
+  with check (public.can_edit_event(event_id) or public.can_manage_event(event_id));
+create policy "Editors delete attendance" on public.attendance
+  for delete to authenticated using (public.can_edit_event(event_id) or public.can_manage_event(event_id));
