@@ -421,6 +421,14 @@ export type Database = {
           { foreignKeyName: "profiles_guild_id_fkey"; columns: ["guild_id"]; isOneToOne: false; referencedRelation: "guilds"; referencedColumns: ["id"] },
         ]
       }
+      confirmations: {
+        Row: { confirmed_at: string; event_id: string; nick: string }
+        Insert: { confirmed_at?: string; event_id: string; nick: string }
+        Update: { confirmed_at?: string; event_id?: string; nick?: string }
+        Relationships: [
+          { foreignKeyName: "confirmations_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+        ]
+      }
       waitlist: {
         Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }
         Insert: { created_at?: string; event_id: string; id?: string; nick: string; weapon_id: string }
@@ -540,6 +548,18 @@ export type Database = {
       discord_claim_reminder: {
         Args: { p_event: string }
         Returns: boolean
+      }
+      discord_confirm: {
+        Args: { p_event: string; p_discord_user: string }
+        Returns: string[]
+      }
+      discord_claim_promotions: {
+        Args: { p_event?: string }
+        Returns: { event_id: string; weapon_id: string | null; nick: string }[]
+      }
+      discord_waitlist_join: {
+        Args: { p_event: string; p_weapon: string; p_nick: string; p_discord_user: string }
+        Returns: number
       }
       discord_leave: {
         Args: { p_event: string; p_discord_user: string }
