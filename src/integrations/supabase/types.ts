@@ -429,6 +429,14 @@ export type Database = {
           { foreignKeyName: "confirmations_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
         ]
       }
+      event_messages: {
+        Row: { body: string; created_at: string; event_id: string; id: string; nick: string }
+        Insert: { body: string; created_at?: string; event_id: string; id?: string; nick: string }
+        Update: { body?: string; created_at?: string; event_id?: string; id?: string; nick?: string }
+        Relationships: [
+          { foreignKeyName: "event_messages_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+        ]
+      }
       waitlist: {
         Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }
         Insert: { created_at?: string; event_id: string; id?: string; nick: string; weapon_id: string }
@@ -608,6 +616,10 @@ export type Database = {
       can_create_content: { Args: never; Returns: boolean }
       can_edit_event: { Args: { _event_id: string }; Returns: boolean }
       can_manage_event: { Args: { _event_id: string }; Returns: boolean }
+      send_event_message: {
+        Args: { _body: string; _event_id: string; _nick: string }
+        Returns: { body: string; created_at: string; event_id: string; id: string; nick: string }
+      }
       event_editor_directory: {
         Args: { _event_id: string }
         Returns: {
