@@ -7,6 +7,7 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
     GET: async () => {
       const { discordConfig } = await import("@/lib/discord.server");
       const { serverEnv } = await import("@/lib/server-env");
+      const { alertWebhookStatus } = await import("@/lib/alerts.server");
       const cfg = discordConfig();
       const keyOk = !!cfg.publicKey && /^[0-9a-f]{64}$/.test(cfg.publicKey);
       return Response.json({
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
         DISCORD_PUBLIC_KEY: !cfg.publicKey ? "faltando" : keyOk ? "ok" : `formato inválido (deve ter 64 letras/números, tem ${cfg.publicKey.length})`,
         DISCORD_BOT_TOKEN: cfg.botToken ? "ok" : "faltando",
         DISCORD_APP_ID: serverEnv("DISCORD_APP_ID") ? "ok" : "faltando (precisa para o convite, o comando /pingorax e os ícones das armas)",
+        DISCORD_ALERT_WEBHOOK: alertWebhookStatus(),
         DISCORD_CHANNEL_ID: cfg.channelId ? (/^[0-9]{5,25}$/.test(cfg.channelId) ? "ok" : "formato inválido (use só o número do canal, sem barra)") : "faltando",
         // Comparação: as variáveis do Supabase (que já funcionam) chegam ao servidor?
         SUPABASE_URL: serverEnv("SUPABASE_URL") ? "ok" : "faltando",
@@ -34,6 +36,8 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
         return Response.json(await handleInteraction(payload));
       } catch (error) {
         console.error("[discord] interaction", error);
+        const { alertError } = await import("@/lib/alerts.server");
+        await alertError("Interação do bot falhou", error);
         return Response.json({ type: 4, data: { content: "Algo deu errado. Tente pelo site.", flags: 64 } });
       }
     },
