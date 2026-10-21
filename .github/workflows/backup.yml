@@ -45,6 +45,12 @@ jobs:
           set -euo pipefail
           umask 077
           stamp="$(date -u +%Y-%m-%d)"
+          # Testa a conexão antes e mostra o motivo (sem a senha) como anotação da execução.
+          if ! err="$(/usr/lib/postgresql/17/bin/psql "$SUPABASE_DB_URL" -Atqc 'select 1' 2>&1 >/dev/null)"; then
+            err="${err//$SUPABASE_DB_URL/***}"
+            echo "::error title=Falha ao conectar no banco::$(echo "$err" | tr '\n' ' ' | cut -c1-300)"
+            exit 1
+          fi
           /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" --schema=public --no-owner --no-privileges --format=plain \
             | gzip -9 \
             | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" \
