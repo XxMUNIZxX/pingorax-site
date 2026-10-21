@@ -18,6 +18,7 @@ import { roleInfo } from "@/lib/weapon-roles";
 import { fetchWaitlist } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
+import { EventChat } from "@/components/event-chat";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
@@ -91,6 +92,11 @@ function EventPage() {
   const { isPrivate } = Route.useLoaderData();
   const qc = useQueryClient();
   const { data: ev, isLoading } = useQuery({ queryKey: ["event", id], queryFn: () => fetchEvent(id) });
+  const manager = useQuery({
+    queryKey: ["can-manage", id],
+    queryFn: async () => { const { data } = await supabase.rpc("can_manage_event", { _event_id: id }); return data === true; },
+    retry: false, staleTime: 60_000,
+  });
   const waitlistQuery = useQuery({ queryKey: ["waitlist", id], queryFn: () => fetchWaitlist(id), retry: false });
   const waitlist = waitlistQuery.data ?? null;  // null = migração 0011 ainda não rodada: sem fila
   const [nick, setNick] = useState("");
@@ -250,6 +256,7 @@ function EventPage() {
           </ol>
         </section>
       )}
+      <EventChat eventId={id} canModerate={manager.data === true} />
     </main>
   );
 }
