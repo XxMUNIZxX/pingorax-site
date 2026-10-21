@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { fetchEventsByIds, type GameEvent } from "@/lib/events";
+import { fetchEventsByIds, isMissingPrivateColumn, type GameEvent } from "@/lib/events";
 
 export type Guild = { id: string; slug: string; name: string; description: string | null; owner_id: string };
 export const MAX_GUILDS_PER_USER = 3;
@@ -39,10 +39,15 @@ export async function fetchMyGuilds(userId: string): Promise<Guild[] | null> {
 /** Conteúdos da guilda: os de hoje em diante (com folga de 3 h) e os 5 mais recentes que já passaram. */
 export async function fetchGuildEvents(guildId: string, now = Date.now()): Promise<{ upcoming: GameEvent[]; recent: GameEvent[] }> {
   const cutoff = new Date(now - 3 * 3600_000).toISOString();
-  const [next, past] = await Promise.all([
-    supabase.from("events").select("id").eq("guild_id", guildId).gte("starts_at", cutoff).order("starts_at").limit(30),
-    supabase.from("events").select("id").eq("guild_id", guildId).lt("starts_at", cutoff).order("starts_at", { ascending: false }).limit(5),
-  ]);
+  // Conteúdo privado (só com o link) não aparece na página da guilda. Sem a migração 0015, mostra tudo como antes.
+  const ids = async (hidePrivate: boolean) => {
+    const base = () => supabase.from("events").select("id").eq("guild_id", guildId);
+    const next = base().gte("starts_at", cutoff).order("starts_at").limit(30);
+    const past = base().lt("starts_at", cutoff).order("starts_at", { ascending: false }).limit(5);
+    return Promise.all(hidePrivate ? [next.eq("is_private", false), past.eq("is_private", false)] : [next, past]);
+  };
+  let [next, past] = await ids(true);
+  if (isMissingPrivateColumn(next.error) || isMissingPrivateColumn(past.error)) [next, past] = await ids(false);
   if (next.error) throw next.error;
   if (past.error) throw past.error;
   const [upcoming, recent] = await Promise.all([
