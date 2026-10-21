@@ -13,6 +13,8 @@ type Row = {
   event_weapons: { id: string; name: string; slots: number; position: number; icon_code?: string | null; icon_path?: string | null; role?: string | null }[];
   signups: { id: string; nick: string; weapon_id: string; created_at: string }[];
   waitlist?: { nick: string; weapon_id: string }[];
+  guild?: { name: string; slug: string } | null;
+  confirmed?: string[];
 };
 
 export type DiscordConfig = { publicKey?: string | undefined; botToken?: string | undefined; channelId?: string | undefined; appId?: string | undefined };
@@ -41,6 +43,15 @@ export async function loadEvent(id: string): Promise<Row | null> {
     // Fila de espera (migração 0011): se a tabela ainda não existe, o card só não mostra a fila.
     const queue = await anonClient().from("waitlist").select("nick,weapon_id").eq("event_id", id).order("created_at");
     if (!queue.error) row.waitlist = queue.data ?? [];
+    // Quem confirmou "estou a caminho" (migração 0017): sem a tabela, o card só não mostra os ✅.
+    const confirmed = await anonClient().from("confirmations").select("nick").eq("event_id", id);
+    if (!confirmed.error) row.confirmed = (confirmed.data ?? []).map((c) => c.nick);
+    // Guilda do conteúdo (migração 0013): se não existir, o card só não mostra o nome dela.
+    const owner = await anonClient().from("events").select("guild_id").eq("id", id).maybeSingle();
+    if (!owner.error && owner.data?.guild_id) {
+      const guild = await anonClient().from("guilds").select("name,slug").eq("id", owner.data.guild_id).maybeSingle();
+      if (!guild.error) row.guild = guild.data ?? null;
+    }
   }
   return row;
 }
@@ -161,7 +172,7 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
     ...(event.caller_name ? [{ name: "Caller", value: clip(safeNick(event.caller_name), 100), inline: true }] : []),
     { name: "Jogadores", value: `${total} / ${event.max_players}${full ? " — lotado" : ""}`, inline: true },
     ...weapons.slice(0, 20).map((w) => {
-      const nicks = event.signups.filter((s) => s.weapon_id === w.id).map((s) => safeNick(s.nick));
+      const nicks = event.signups.filter((s) => s.weapon_id === w.id).map((s) => `${event.confirmed?.includes(s.nick) ? "✅ " : ""}${safeNick(s.nick)}`);
       const e = emojiOf(w);
       return { name: clip(`${e ? `${emojiTag(e)} ` : ""}${w.name}${roleLabel(w.role) ? ` · ${roleLabel(w.role)}` : ""} (${nicks.length}/${w.slots})`, 256), value: clip(nicks.join(", ") || "—", 1024), inline: true };
     }),
@@ -178,7 +189,9 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
   const buttons: object[] = weapons.slice(0, 22).map((w) => {
     const left = w.slots - event.signups.filter((s) => s.weapon_id === w.id).length;
     const e = emojiOf(w);
-    return { type: 2, style: left > 0 && !full ? 1 : 2, disabled: left <= 0 || full, custom_id: `p:${event.id}:${w.id}`, label: clip(`${w.name} (${Math.max(0, left)})`, 80), ...(e ? { emoji: { id: e.id, name: e.name } } : {}) };
+    // Arma (ou conteúdo) lotado: com a fila disponível o botão continua clicável e leva à fila de espera.
+    const queue = (left <= 0 || full) && event.waitlist !== undefined;
+    return { type: 2, style: left > 0 && !full ? 1 : 2, disabled: (left <= 0 || full) && !queue, custom_id: `p:${event.id}:${w.id}`, label: clip(queue ? `${w.name} · fila` : `${w.name} (${Math.max(0, left)})`, 80), ...(e ? { emoji: { id: e.id, name: e.name } } : {}) };
   });
   buttons.push({ type: 2, style: 4, custom_id: `l:${event.id}`, label: "Sair" });
   buttons.push({ type: 2, style: 5, label: "Abrir no site", url: link });
@@ -188,6 +201,7 @@ export function buildMessage(event: Row, emojis: EmojiMap = new Map()) {
 
   return {
     embeds: [{
+      ...(event.guild ? { author: { name: clip(event.guild.name, 256), url: `${SHARE_ORIGIN}/g/${event.guild.slug}` } } : {}),
       title: clip(event.title, 256), url: link, color: COLOR, description: description || undefined, fields,
       thumbnail: { url: `${SHARE_ORIGIN}/logo-96.png` }, footer: { text: full ? "Conteúdo lotado" : "Clique na sua arma para pingar" },
     }],
@@ -323,6 +337,7 @@ export function reminderText(event: Row): string {
   const nicks = event.signups.map((s) => safeNick(s.nick));
   return [
     `⏰ **${clip(safeNick(event.title), 150)}** começa <t:${unix}:R>!`,
+    event.guild ? `Guilda: **${clip(safeNick(event.guild.name), 60)}**` : "",
     `${total}/${event.max_players} jogadores${free ? ` — ainda tem ${free} ${free === 1 ? "vaga" : "vagas"}, corre pingar.` : " — lotado."}`,
     nicks.length ? `Confirmados: ${clip(nicks.join(", "), 1200)}` : "",
     `${SHARE_ORIGIN}/evento/${event.id}`,
@@ -352,6 +367,7 @@ export async function sendReminders(cfg: DiscordConfig, now = Date.now()): Promi
       await sendRawMessage(row.channel_id, cfg, {
         content: reminderText(event),
         message_reference: { message_id: row.message_id, fail_if_not_exists: false },
+        components: [{ type: 1, components: [{ type: 2, style: 3, custom_id: `c:${row.event_id}`, label: "Estou a caminho" }] }],
         allowed_mentions: { parse: [] as string[] },
       });
       sent++;
@@ -364,10 +380,11 @@ export async function sendReminders(cfg: DiscordConfig, now = Date.now()): Promi
 export async function discordMaintenance(cfg: DiscordConfig, now = Date.now()) {
   if (now - lastMaintenance < 60_000) return { skipped: true as const };
   lastMaintenance = now;
-  const result: { cleanup?: Awaited<ReturnType<typeof cleanupExpiredPosts>>; reminders?: Awaited<ReturnType<typeof sendReminders>>; errors: string[] } = { errors: [] };
+  const result: { cleanup?: Awaited<ReturnType<typeof cleanupExpiredPosts>>; reminders?: Awaited<ReturnType<typeof sendReminders>>; promotions?: number; errors: string[] } = { errors: [] };
   const { alertError } = await import("@/lib/alerts.server");
   try { result.cleanup = await cleanupExpiredPosts(cfg, now); } catch (error) { result.errors.push("limpeza"); console.error("[discord] limpeza", error); await alertError("Limpeza de mensagens falhou", error, now); }
   try { result.reminders = await sendReminders(cfg, now); } catch (error) { result.errors.push("lembretes"); console.error("[discord] lembretes", error); await alertError("Lembretes falharam", error, now); }
+  try { result.promotions = await notifyPromotions(cfg); } catch (error) { result.errors.push("fila"); console.error("[discord] fila", error); await alertError("Aviso da fila de espera falhou", error, now); }
   if ((result.cleanup?.failed ?? 0) > 0) await alertError("Não consegui apagar mensagens", `${result.cleanup!.failed} mensagem(ns) não foram apagadas. Confira se o bot tem a permissão Gerenciar Mensagens nos canais.`, now);
   if ((result.reminders?.failed ?? 0) > 0) await alertError("Não consegui enviar lembretes", `${result.reminders!.failed} lembrete(s) falharam. Confira se o bot ainda enxerga o canal.`, now);
   return result;
@@ -457,6 +474,14 @@ async function buildCommand(body: Interaction) {
   }
 }
 
+/** Atualiza o card do conteúdo no canal (ex.: depois de uma confirmação). Silencioso se o conteúdo não foi postado. */
+async function refreshCard(eventId: string) {
+  const cfg = discordConfig();
+  const { data: post } = await anonClient().from("discord_posts").select("channel_id,message_id").eq("event_id", eventId).maybeSingle();
+  const event = post ? await loadEvent(eventId) : null;
+  if (post && event) await editEventMessage(event, post.channel_id, post.message_id, cfg);
+}
+
 const NO_PERMISSION = "Só quem tem **Gerenciar Mensagens** (ou Gerenciar Servidor) pode remover mensagens de conteúdo.";
 const whenText = (iso: string) => new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
@@ -508,6 +533,56 @@ async function removeCommand(body: Interaction) {
   }
 }
 
+/** Entrar na fila de espera pelo Discord (arma ou conteúdo lotado). Responde só para quem clicou e atualiza o card. */
+async function joinQueue(body: Interaction, eventId: string, weaponId: string, nick: string, discordUserId: string) {
+  if (!discordUserId) return ephemeral("Não consegui identificar você no Discord.");
+  const { data: position, error } = await anonClient().rpc("discord_waitlist_join", { p_event: eventId, p_weapon: weaponId, p_nick: nick, p_discord_user: discordUserId });
+  if (error) {
+    if (error.code === "42883" || error.code === "PGRST202") return ephemeral("A fila de espera pelo Discord ainda não está ativa. Entre na fila pelo site.");
+    if (error.code === "23505") return ephemeral(`O nick **${safeNick(nick)}** já está na fila deste conteúdo.`);
+    if (/pingou|cheia|vaga/i.test(error.message)) return ephemeral(`Não deu: ${error.message}.`);
+    console.error("[discord] fila", error);
+    return ephemeral("Não foi possível entrar na fila. Tente pelo site.");
+  }
+  const cfg = discordConfig();
+  const refresh = (async () => {
+    const event = await loadEvent(eventId);
+    if (event && body.message?.id && body.message.channel_id) await editEventMessage(event, body.message.channel_id, body.message.id, cfg);
+  })().catch((err) => console.error("[discord] atualizar card", err));
+  if (!(await runLater(refresh))) await refresh;
+  return ephemeral(`Você entrou na fila de espera${typeof position === "number" ? ` (posição ${position})` : ""}. Se abrir vaga, seu ping é confirmado sozinho e o canal é avisado.`);
+}
+
+/** Texto do aviso de quem subiu da fila. */
+export function promotionText(event: Row, entries: { weapon_id: string | null; nick: string }[]): string {
+  const lines = entries.map((e) => {
+    const weapon = event.event_weapons.find((w) => w.id === e.weapon_id)?.name;
+    return `🎉 **${safeNick(e.nick)}** subiu da fila${weapon ? ` e garantiu a vaga de **${clip(safeNick(weapon), 60)}**` : ""}.`;
+  });
+  return clip(`${lines.join("\n")}\n${clip(safeNick(event.title), 120)} — ${SHARE_ORIGIN}/evento/${event.id}`, 1900);
+}
+
+/** Avisa no canal de cada conteúdo quem subiu da fila e atualiza o card. Seguro de chamar várias vezes (cada promoção só é avisada uma vez). */
+export async function notifyPromotions(cfg: DiscordConfig, eventId?: string): Promise<number> {
+  if (!cfg.botToken) return 0;
+  const { data, error } = await anonClient().rpc("discord_claim_promotions", eventId ? { p_event: eventId } : {});
+  if (error) { if (error.code === "42883" || error.code === "PGRST202") return 0; throw error; }
+  const byEvent = new Map<string, { weapon_id: string | null; nick: string }[]>();
+  for (const row of data ?? []) byEvent.set(row.event_id, [...(byEvent.get(row.event_id) ?? []), { weapon_id: row.weapon_id, nick: row.nick }]);
+  let sent = 0;
+  for (const [id, entries] of byEvent) {
+    try {
+      const { data: post } = await anonClient().from("discord_posts").select("channel_id,message_id").eq("event_id", id).maybeSingle();
+      const event = post ? await loadEvent(id) : null;
+      if (!post || !event) continue;
+      await sendRawMessage(post.channel_id, cfg, { content: promotionText(event, entries), allowed_mentions: { parse: [] } });
+      await editEventMessage(event, post.channel_id, post.message_id, cfg).catch(() => undefined);
+      sent += entries.length;
+    } catch (err) { console.error("[discord] aviso de promoção", id, err); }
+  }
+  return sent;
+}
+
 export async function handleInteraction(body: Interaction) {
   if (body.type === 1) return { type: 1 };
   // Aproveita cada interação para limpar conteúdos vencidos e mandar lembretes (reforço do agendamento; no máximo 1x por minuto).
@@ -553,9 +628,27 @@ export async function handleInteraction(body: Interaction) {
     const { data, error } = await anonClient().rpc("discord_leave", { p_event: match[1]!, p_discord_user: discordUserId });
     if (error) { console.error("[discord] leave", error); return ephemeral("Não foi possível tirar seu ping agora. Tente de novo."); }
     if (!data) return ephemeral("Você não tem ping neste conteúdo pelo Discord. Se pingou pelo site, peça ao caller para remover.");
+    // Se o ping liberou vaga para alguém da fila, avisa o canal (sem atrasar a resposta).
+    void runLater(notifyPromotions(discordConfig(), match[1]!).catch((err) => console.error("[discord] promoções", err)));
     const event = await loadEvent(match[1]!);
     if (!event) return ephemeral("Esse conteúdo não existe mais.");
     return { type: 7, data: buildMessage(event, await weaponEmojis(event, discordConfig(), false)) };
+  }
+
+  // Clique em "Estou a caminho" (no lembrete) -> confirma os pings desta pessoa e põe o ✅ no card
+  if (body.type === 3 && customId.startsWith("c:")) {
+    const match = customId.match(new RegExp(`^c:(${UUID})$`));
+    if (!match) return ephemeral("Botão desconhecido.");
+    if (!discordUserId) return ephemeral("Não consegui identificar você no Discord.");
+    const { data, error } = await anonClient().rpc("discord_confirm", { p_event: match[1]!, p_discord_user: discordUserId });
+    if (error) {
+      if (error.code === "42883" || error.code === "PGRST202") return ephemeral("A confirmação ainda não está ativa.");
+      console.error("[discord] confirmar", error); return ephemeral("Não foi possível confirmar agora. Tente de novo.");
+    }
+    const nicks = (data ?? []) as string[];
+    if (nicks.length === 0) return ephemeral("Você não tem ping neste conteúdo pelo Discord. Se pingou pelo site, avise o caller.");
+    void runLater(refreshCard(match[1]!).catch((err) => console.error("[discord] atualizar card", err)));
+    return ephemeral(`Confirmado, ${nicks.map(safeNick).join(", ")}! ✅ Te esperamos lá.`);
   }
 
   // Clique em "Remover mensagem" -> apaga o card do canal (só quem gerencia mensagens)
@@ -590,7 +683,8 @@ export async function handleInteraction(body: Interaction) {
     const { error } = await anonClient().rpc("discord_signup", { p_event: eventId, p_weapon: weaponId, p_nick: nick, p_discord_user: discordUserId });
     if (error) {
       if (error.code === "23505") return ephemeral(`O nick **${safeNick(nick)}** já pingou neste conteúdo.`);
-      if (/lotado|esgotadas|inválid/i.test(error.message)) return ephemeral(`Não deu: ${error.message}.`);
+      if (/lotado|esgotadas/i.test(error.message)) return joinQueue(body, eventId, weaponId, nick, discordUserId);
+      if (/inválid/i.test(error.message)) return ephemeral(`Não deu: ${error.message}.`);
       console.error("[discord] signup", error);
       return ephemeral("Não foi possível confirmar seu ping. Tente pelo site.");
     }

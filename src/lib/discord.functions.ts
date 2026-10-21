@@ -110,7 +110,7 @@ export const refreshDiscordMessage = createServerFn({ method: "POST" })
     lastRefresh.set(data.eventId, now);
     if (lastRefresh.size > 500) lastRefresh.clear();
     try {
-      const { discordConfig, loadEvent, editEventMessage, anonClient } = await import("@/lib/discord.server");
+      const { discordConfig, loadEvent, editEventMessage, anonClient, notifyPromotions } = await import("@/lib/discord.server");
       const cfg = discordConfig();
       if (!cfg.botToken) return { ok: false };
       const { data: post } = await anonClient().from("discord_posts").select("channel_id,message_id").eq("event_id", data.eventId).maybeSingle();
@@ -118,6 +118,8 @@ export const refreshDiscordMessage = createServerFn({ method: "POST" })
       const event = await loadEvent(data.eventId);
       if (!event) return { ok: false };
       await editEventMessage(event, post.channel_id, post.message_id, cfg);
+      // Se a mudança abriu vaga para alguém da fila, avisa o canal.
+      await notifyPromotions(cfg, data.eventId).catch((error) => console.error("[discord] promoções", error));
       return { ok: true };
     } catch (error) {
       console.error("[discord] refresh", error);
