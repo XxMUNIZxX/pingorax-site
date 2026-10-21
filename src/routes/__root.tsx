@@ -141,7 +141,7 @@ function RootComponent() {
 }
 
 function PanelNavigation() {
-  const { isAdmin } = usePanelAccess();
+  const { isAdmin, session } = usePanelAccess();
   const active = { className: "bg-secondary text-foreground", "aria-current": "page" as const };
   return <nav aria-label="Painéis" className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 sm:flex-wrap sm:justify-end sm:overflow-visible">
     <Button variant="ghost" size="sm" asChild><Link to="/conteudos" activeProps={active}>Conteúdos</Link></Button>
@@ -151,6 +151,7 @@ function PanelNavigation() {
     {WORLD_MAP_ENABLED && <Button variant="ghost" size="sm" asChild><Link to="/mapa" activeProps={active}>Mapa</Link></Button>}
     <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={active}>Criar conteúdo</Link></Button>
     {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={active}>Administração</Link></Button>}
+    <Button variant="ghost" size="sm" asChild><Link to="/perfil" activeProps={active}>{session ? "Meu perfil" : "Entrar"}</Link></Button>
   </nav>;
 }
 
