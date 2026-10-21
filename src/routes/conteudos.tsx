@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { EMPTY_CONTENT_FILTERS, filterContents } from "@/lib/content-filters";
 import { useContentOptions } from "@/lib/content-options";
 import { DEFAULT_SHARE_IMAGE, SHARE_ORIGIN } from "@/lib/share-image";
+import { RequireLogin } from "@/components/require-login";
 
 const HOME_SHARE_IMAGE = DEFAULT_SHARE_IMAGE;
 
@@ -48,6 +49,10 @@ function shareEvent(e: React.MouseEvent, id: string, title: string) {
 }
 
 function ContentsPage() {
+  return <RequireLogin redirectPath="/conteudos"><ContentsList /></RequireLogin>;
+}
+
+function ContentsList() {
   const { data: events, isLoading, isError } = useQuery({ queryKey: ["events"], queryFn: fetchEvents });
   const [filters, setFilters] = useState(EMPTY_CONTENT_FILTERS);
   const { modes, types } = useContentOptions();

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { arrangePeople, isMissingProfiles, profileDefaults, validateProfile, type Profile } from "@/lib/profiles";
+import { arrangePeople, isMissingProfiles, profileDefaults, validateNick, validateProfile, type Profile } from "@/lib/profiles";
 
 describe("perfil inicial vindo do Discord/Google", () => {
   it("usa o nome de exibição do Discord antes dos outros", () => {
@@ -50,5 +50,17 @@ describe("migração dos perfis ainda não rodada", () => {
   it("reconhece o erro", () => {
     expect(isMissingProfiles({ code: "PGRST205", message: "Could not find the table 'public.profiles'" })).toBe(true);
     expect(isMissingProfiles({ code: "23505", message: "duplicate" })).toBe(false);
+  });
+});
+
+describe("nick pedido no primeiro login", () => {
+  it("limpa espaços e aceita de 2 a 32 caracteres", () => {
+    expect(validateNick("  Pingora   X ")).toEqual({ nick: "Pingora X" });
+    expect(validateNick("ab")).toEqual({ nick: "ab" });
+  });
+  it("recusa nick curto, vazio ou longo demais", () => {
+    expect("error" in validateNick("a")).toBe(true);
+    expect("error" in validateNick("   ")).toBe(true);
+    expect("error" in validateNick("x".repeat(33))).toBe(true);
   });
 });

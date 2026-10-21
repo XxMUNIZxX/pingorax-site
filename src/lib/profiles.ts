@@ -26,6 +26,13 @@ export function profileDefaults(user: UserLike): { display_name: string; avatar_
   return { display_name: name.slice(0, 40), avatar_url: avatar };
 }
 
+/** Nick do Albion pedido uma vez no primeiro login: devolve o nick limpo ou a mensagem de erro. */
+export function validateNick(raw: string): { error: string } | { nick: string } {
+  const nick = raw.trim().replace(/\s+/g, " ");
+  if (nick.length < 2 || nick.length > 32) return { error: "O nick do Albion precisa ter de 2 a 32 caracteres." };
+  return { nick };
+}
+
 /** Confere o formulário; devolve a mensagem de erro ou os campos já limpos para salvar. */
 export function validateProfile(form: ProfileForm): { error: string } | { fields: ProfileFields } {
   const display_name = form.display_name.trim();
