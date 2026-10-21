@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import type { BattleDetail, BattleKills, BattleListItem, KillDetail, KillSummary, PlayerHit, PlayerProfile } from "@/lib/albion-types";
+import type { BattleDetail, BattleKills, BattleListItem, GuildHit, GuildProfile, KillDetail, KillSummary, PlayerHit, PlayerProfile } from "@/lib/albion-types";
 
 const server = z.enum(["americas", "europe", "asia"]);
 
@@ -59,8 +59,8 @@ export const fetchRecentKills = createServerFn({ method: "GET" })
 /** Busca de jogadores pelo nome. */
 export const fetchPlayerSearch = createServerFn({ method: "GET" })
   .inputValidator((value: unknown) => z.object({ server, query: z.string().trim().min(2).max(40) }).parse(value))
-  .handler(async ({ data }): Promise<{ ok: true; players: PlayerHit[] } | Fail> => {
-    try { const { searchPlayers } = await import("@/lib/albion-kills.server"); return { ok: true, players: await searchPlayers(data.server, data.query) }; }
+  .handler(async ({ data }): Promise<{ ok: true; players: PlayerHit[]; guilds: GuildHit[] } | Fail> => {
+    try { const { searchPlayers } = await import("@/lib/albion-kills.server"); return { ok: true, ...(await searchPlayers(data.server, data.query)) }; }
     catch (error) { return failure("search", error, "A busca não respondeu agora. Tente de novo."); }
   });
 
@@ -78,4 +78,12 @@ export const fetchKill = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<{ ok: true; kill: KillDetail } | Fail> => {
     try { const { killDetail } = await import("@/lib/albion-kills.server"); return { ok: true, kill: await killDetail(data.server, data.id) }; }
     catch (error) { return failure("kill", error, "Não consegui carregar essa kill agora. Confira o número e tente de novo."); }
+  });
+
+/** Perfil de uma guilda: números gerais e membros com mais fama. */
+export const fetchGuild = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ server, id: z.string().regex(/^[A-Za-z0-9_-]{10,40}$/) }).parse(value))
+  .handler(async ({ data }): Promise<{ ok: true; guild: GuildProfile } | Fail> => {
+    try { const { guildProfile } = await import("@/lib/albion-kills.server"); return { ok: true, guild: await guildProfile(data.server, data.id) }; }
+    catch (error) { return failure("guild", error, "Não consegui carregar essa guilda agora."); }
   });

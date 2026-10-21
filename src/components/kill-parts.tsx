@@ -21,7 +21,12 @@ export function SideBlock({ side, server, nameOf, align = "left" }: { side: Kill
             : <span className="truncate text-sm font-bold">{side.name}</span>}
           {side.ip > 0 && <sup className="text-[10px] text-muted-foreground">{side.ip}</sup>}
         </div>
-        <div className="truncate text-xs text-muted-foreground">{[side.alliance && `[${side.alliance}]`, side.guild].filter(Boolean).join(" ") || "—"}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {side.alliance && `[${side.alliance}] `}
+          {side.guild && side.guildId
+            ? <Link to="/kills" search={{ servidor: server, guilda: side.guildId }} onClick={(e) => e.stopPropagation()} className="hover:text-primary hover:underline">{side.guild}</Link>
+            : side.guild || (!side.alliance && "—")}
+        </div>
         {weapon && <div className="truncate text-[11px] text-muted-foreground/80">{tierText(weapon)} {nameOf(weapon)}</div>}
       </div>
     </div>
