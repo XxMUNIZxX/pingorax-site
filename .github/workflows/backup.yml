@@ -1,0 +1,63 @@
+name: Backup do banco
+
+# Todo domingo (e quando você clicar em "Run workflow"): exporta o schema `public` do Supabase,
+# CRIPTOGRAFA com a senha BACKUP_PASSPHRASE e guarda por 30 dias como "artifact" desta execução.
+# Este repositório é público: por isso o arquivo SÓ é enviado criptografado. Nunca suba o dump em claro.
+# Passo a passo e como restaurar: docs/BACKUP.md
+on:
+  schedule:
+    - cron: "17 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Conferir os segredos
+        id: check
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::notice::Backup não configurado: cadastre SUPABASE_DB_URL e BACKUP_PASSPHRASE (veja docs/BACKUP.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar o cliente do Postgres 17
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Exportar e criptografar
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp="$(date -u +%Y-%m-%d)"
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" --schema=public --no-owner --no-privileges --format=plain \
+            | gzip -9 \
+            | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" \
+                  --output "pingorax-$stamp.sql.gz.gpg"
+          ls -l pingorax-*.sql.gz.gpg
+          # Confere que o arquivo abre com a senha e não está vazio (sem imprimir nada do conteúdo).
+          gpg --batch --pinentry-mode loopback --decrypt --passphrase "$BACKUP_PASSPHRASE" "pingorax-$stamp.sql.gz.gpg" | gunzip | head -c 200 | grep -q "PostgreSQL database dump"
+
+      - name: Guardar por 30 dias (criptografado)
+        if: steps.check.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-banco
+          path: pingorax-*.sql.gz.gpg
+          retention-days: 30
+          if-no-files-found: error
