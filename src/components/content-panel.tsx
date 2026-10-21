@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ALBION_WEAPONS, fetchManagedEvents, formatDate, weeklyStarts, type GameEvent } from "@/lib/events";
+import { ALBION_WEAPONS, fetchIsPrivate, fetchManagedEvents, fetchPrivacySupport, fetchPrivateIds, formatDate, weeklyStarts, type GameEvent } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WeaponIconInput } from "@/components/weapon-icon-input";
@@ -30,7 +31,7 @@ import { SHARE_ORIGIN } from "@/lib/share-image";
 import { WEAPON_ROLES, isMissingRoleColumn, moveItem, roleInfo } from "@/lib/weapon-roles";
 
 type WeaponDraft = { uid?: string; id?: string; role?: string | null | undefined; name: string; slots: number; icon_path?: string | null | undefined; icon_url?: string | null | undefined; icon_code?: string | null | undefined; iconFile?: File | undefined; build_id?: string | null | undefined };
-type Draft = { id?: string; copyOf?: string; repeat?: number; guild_id?: string | null; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
+type Draft = { id?: string; copyOf?: string; repeat?: number; guild_id?: string | null; is_private?: boolean; title: string; description: string; starts_at: string; max_players: number; weapons: WeaponDraft[]; mode: string | null; caller_name: string | null; content_type: string | null };
 
 const toLocalInput = (iso: string) => {
   const d = new Date(iso);
@@ -60,6 +61,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
     try { await markAttendance(rows); qc.invalidateQueries({ queryKey: ["attendance"] }); }
     catch { toast.error("Não foi possível salvar a presença."); }
   }
+  const privateIds = useQuery({ queryKey: ["private-ids", eventIds.join(",")], queryFn: () => fetchPrivateIds(eventIds), enabled: eventIds.length > 0 }).data;
   const posted = useQuery({ queryKey: ["discord-posts"], queryFn: async () => {
     const { data, error } = await supabase.from("discord_posts").select("event_id");
     if (error) throw error;
@@ -118,6 +120,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   /** Abre o editor com uma cópia: sem pings, sem horário (para escolher o novo) e salva como conteúdo novo. */
   function duplicate(e: GameEvent) {
     void fetchEventGuildId(e.id).then((guild_id) => setDraft((d) => (d && !d.id && d.copyOf === e.title ? { ...d, guild_id } : d)));
+    void fetchIsPrivate(e.id).then((is_private) => setDraft((d) => (d && !d.id && d.copyOf === e.title ? { ...d, is_private } : d)));
     setDraft({
       copyOf: e.title, title: `${e.title} (cópia)`.slice(0, 120), description: e.description ?? "", starts_at: "", max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
       weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
@@ -126,6 +129,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
   }
   function edit(e: GameEvent) {
     void fetchEventGuildId(e.id).then((guild_id) => setDraft((d) => (d?.id === e.id ? { ...d, guild_id } : d)));
+    void fetchIsPrivate(e.id).then((is_private) => setDraft((d) => (d?.id === e.id ? { ...d, is_private } : d)));
     setDraft({
       id: e.id, title: e.title, description: e.description ?? "", starts_at: toLocalInput(e.starts_at), max_players: e.max_players, mode: e.mode, caller_name: e.caller_name, content_type: e.content_type,
       weapons: [...e.event_weapons].sort((a, b) => a.position - b.position).map((w) => ({ uid: newUid(), id: w.id, role: w.role ?? null, name: w.name, slots: w.slots, icon_path: w.icon_path, icon_url: w.icon_url, icon_code: w.icon_code, build_id: w.build_id })),
@@ -173,7 +177,7 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="text-xs uppercase tracking-widest text-primary">{formatDate(e.starts_at)}{e.mode && ` • ${e.mode}`}{e.content_type && ` • ${e.content_type}`}</p>
-                <h2 className="text-xl font-bold">{e.title}</h2>
+                <h2 className="text-xl font-bold">{e.title}{privateIds?.has(e.id) && <span className="ml-2 align-middle rounded-full border border-primary/50 px-2 py-0.5 text-xs font-medium text-primary">Privado · só com o link</span>}</h2>
                 {e.caller_name && <p className="text-sm text-gold">Caller: {e.caller_name}</p>}
                 {!isAdmin && e.created_by !== userId && <span className="text-xs text-primary">Compartilhado comigo</span>}
                  <p className="text-sm text-muted-foreground">{e.signups.length}/{e.max_players} jogadores</p>
@@ -248,8 +252,10 @@ export function ContentPanel({ userId, isAdmin, canCreate }: { userId: string; i
 
 function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; draft: Draft; setDraft: (d: Draft | null) => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
   const refreshDiscord = useServerFn(refreshDiscordMessage);
   const options = useContentOptions();
+  const privacySupported = useQuery({ queryKey: ["privacy-support"], queryFn: fetchPrivacySupport, staleTime: 5 * 60_000 }).data === true;
   const myGuilds = useMyGuilds(userId).data ?? null;  // null = migração 0013 não rodada
   const catalog = useQuery({ queryKey: ["weapon-catalog"], queryFn: fetchWeaponCatalog, staleTime: 60_000 });
   const modeList = withCurrentValue(options.modes, draft.mode);
@@ -273,7 +279,7 @@ function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; dra
     if (!draft.title || !draft.starts_at || draft.weapons.length === 0) { toast.error("Preencha título, horário e ao menos uma arma"); return; }
     setSaving(true);
     try {
-    const payload = { title: draft.title, description: draft.description || null, starts_at: new Date(draft.starts_at).toISOString(), max_players: draft.max_players, mode: draft.mode || null, caller_name: draft.caller_name?.trim() || null, content_type: draft.content_type || null, ...(myGuilds && draft.guild_id !== undefined ? { guild_id: draft.guild_id } : {}) };
+    const payload = { title: draft.title, description: draft.description || null, starts_at: new Date(draft.starts_at).toISOString(), max_players: draft.max_players, mode: draft.mode || null, caller_name: draft.caller_name?.trim() || null, content_type: draft.content_type || null, ...(myGuilds && draft.guild_id !== undefined ? { guild_id: draft.guild_id } : {}), ...(privacySupported && draft.is_private !== undefined ? { is_private: draft.is_private } : {}) };
     let eventId = draft.id;
     if (eventId) {
       const { data, error } = await supabase.from("events").update(payload).eq("id", eventId).select("id").maybeSingle();
@@ -320,6 +326,7 @@ function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; dra
       if (rowsError) { toast.error("Uma das semanas foi criada sem armas. Confira a lista."); break; }
       created++;
     }
+    void qc.invalidateQueries({ queryKey: ["private-ids"] });
     toast.success(extra > 0 ? `${created + 1} conteúdos salvos (um por semana)` : "Conteúdo salvo");
     if (roleSkipped) toast.warning("As funções não foram salvas: falta rodar a migração 0009 no Supabase.");
     void refreshDiscord({ data: { eventId } }).catch(() => undefined);
@@ -374,6 +381,12 @@ function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; dra
             </Select>
             <p className="text-xs text-muted-foreground">Aparece na página pública da guilda.</p>
           </div>
+        )}
+        {privacySupported && (
+          <label className="flex items-start gap-3 rounded-md border border-border p-3 md:col-span-2">
+            <Switch checked={draft.is_private === true} onCheckedChange={(v) => set({ is_private: v })} aria-label="Conteúdo privado" />
+            <span className="text-sm"><span className="font-semibold">Conteúdo privado (só com o link)</span><br /><span className="text-muted-foreground">Não aparece na página inicial, na lista de conteúdos nem na página da guilda. Quem recebeu o link ou viu o card no Discord abre e pinga normalmente. Quem tiver o link pode repassar.</span></span>
+          </label>
         )}
         {!draft.id && (
           <div className="space-y-1">

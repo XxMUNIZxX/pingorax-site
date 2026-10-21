@@ -322,6 +322,7 @@ export type Database = {
           created_at: string
           created_by: string
           guild_id: string | null
+          is_private: boolean
           description: string | null
           id: string
           max_players: number
@@ -335,6 +336,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           guild_id?: string | null
+          is_private?: boolean
           description?: string | null
           id?: string
           max_players?: number
@@ -348,6 +350,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           guild_id?: string | null
+          is_private?: boolean
           description?: string | null
           id?: string
           max_players?: number

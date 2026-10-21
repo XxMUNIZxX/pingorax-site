@@ -1447,3 +1447,10 @@ create or replace function public.touch_profile() returns trigger language plpgs
 begin new.updated_at := now(); return new; end $$;
 drop trigger if exists touch_profile_trg on public.profiles;
 create trigger touch_profile_trg before update on public.profiles for each row execute function public.touch_profile();
+
+-- ---------------------------------------------------------------------------
+-- Conteúdo privado / só com o link (migração 0015)
+-- ---------------------------------------------------------------------------
+
+alter table public.events add column if not exists is_private boolean not null default false;
+create index if not exists events_public_idx on public.events (starts_at) where not is_private;

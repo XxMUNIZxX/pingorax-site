@@ -52,10 +52,42 @@ async function withIcons(events: GameEvent[]) {
   })) }));
 }
 
+/** Erro de "coluna não existe": a migração 0015 (conteúdo privado) ainda não foi rodada no Supabase. */
+export function isMissingPrivateColumn(error: { message?: string | undefined; code?: string | undefined } | null | undefined) {
+  if (!error) return false;
+  const text = error.message ?? "";
+  return error.code === "42703" || error.code === "PGRST204" || (/is_private/i.test(text) && /(does not exist|schema cache|not found|could not find)/i.test(text));
+}
+
+/** Lista pública: conteúdos privados (só com o link) ficam de fora. Sem a migração 0015, lista tudo como antes. */
 export async function fetchEvents(): Promise<GameEvent[]> {
-  const { data, error } = await withRoleFallback((select) => supabase.from("events").select(select).order("starts_at"));
-  if (error) throw error;
-  return withIcons((data ?? []) as unknown as GameEvent[]);
+  const run = (hidePrivate: boolean) => withRoleFallback((select) => {
+    const query = supabase.from("events").select(select).order("starts_at");
+    return hidePrivate ? query.eq("is_private", false) : query;
+  });
+  let result = await run(true);
+  if (isMissingPrivateColumn(result.error)) result = await run(false);
+  if (result.error) throw result.error;
+  return withIcons((result.data ?? []) as unknown as GameEvent[]);
+}
+
+/** A migração 0015 já foi rodada? (para mostrar ou esconder a opção "privado" no editor) */
+export async function fetchPrivacySupport(): Promise<boolean> {
+  const { error } = await supabase.from("events").select("is_private").limit(1);
+  return !error;
+}
+
+/** O conteúdo é privado? Falso se a coluna ainda não existe. */
+export async function fetchIsPrivate(id: string): Promise<boolean> {
+  const { data, error } = await supabase.from("events").select("is_private").eq("id", id).maybeSingle();
+  return !error && !!data?.is_private;
+}
+
+/** Dos ids dados, os que são privados (para marcar no painel). */
+export async function fetchPrivateIds(ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data, error } = await supabase.from("events").select("id").in("id", ids).eq("is_private", true);
+  return new Set(error ? [] : (data ?? []).map((row) => row.id));
 }
 
 export async function fetchManagedEvents(): Promise<GameEvent[]> {

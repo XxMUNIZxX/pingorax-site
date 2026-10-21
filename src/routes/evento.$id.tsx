@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchEvent, formatDate } from "@/lib/events";
+import { fetchEvent, fetchIsPrivate, formatDate } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,8 @@ import { SHARE_ORIGIN } from "@/lib/share-image";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
-    const [event, shareImage] = await Promise.all([fetchEvent(params.id).catch(() => null), getShareImage()]);
-    return { event, shareImage };
+    const [event, shareImage, isPrivate] = await Promise.all([fetchEvent(params.id).catch(() => null), getShareImage(), fetchIsPrivate(params.id).catch(() => false)]);
+    return { event, shareImage, isPrivate };
   },
   head: ({ loaderData }) => {
     const event = loaderData?.event;
@@ -34,6 +34,8 @@ export const Route = createFileRoute("/evento/$id")({
       meta: [
         { title },
         { name: "description", content: desc },
+        // Conteúdo privado: fora dos buscadores (o link continua funcionando para quem recebeu).
+        ...(loaderData?.isPrivate ? [{ name: "robots", content: "noindex, nofollow" }] : []),
         { property: "og:type", content: "website" },
         { property: "og:title", content: title },
         { property: "og:description", content: desc },
@@ -86,6 +88,7 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 
 function EventPage() {
   const { id } = Route.useParams();
+  const { isPrivate } = Route.useLoaderData();
   const qc = useQueryClient();
   const { data: ev, isLoading } = useQuery({ queryKey: ["event", id], queryFn: () => fetchEvent(id) });
   const waitlistQuery = useQuery({ queryKey: ["waitlist", id], queryFn: () => fetchWaitlist(id), retry: false });
@@ -150,6 +153,7 @@ function EventPage() {
         <p className="text-sm font-semibold uppercase tracking-widest text-primary">{formatDate(ev.starts_at)}</p>
         {ev.mode && <Badge variant="outline" className="border-primary/50 text-primary">{ev.mode}</Badge>}
         {ev.content_type && <Badge variant="secondary">{ev.content_type}</Badge>}
+        {isPrivate && <Badge variant="outline" className="border-primary/50 text-primary">Privado · só com o link</Badge>}
       </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col">
