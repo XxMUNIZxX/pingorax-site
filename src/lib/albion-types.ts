@@ -10,7 +10,7 @@ export type Gear = Partial<Record<"weapon" | "offhand" | "helmet" | "armor" | "b
 
 export type BattleListItem = { id: number; startTime: string; players: number; kills: number; fame: number; groups: string[] };
 
-export type KillSide = { id?: string; name: string; guild: string; alliance: string; allianceTag: string; ip: number; gear: Gear };
+export type KillSide = { id?: string; guildId?: string; name: string; guild: string; alliance: string; allianceTag: string; ip: number; gear: Gear };
 export type BattleKill = { id: number; time: string; fame: number; killer: KillSide; victim: KillSide };
 
 export type BattlePlayer = { name: string; guild: string; alliance: string; kills: number; deaths: number; fame: number; ip: number; gear: Gear };
@@ -29,7 +29,14 @@ export type KillParticipant = { name: string; id: string; guild: string; allianc
 export type KillDetail = KillSummary & { inventory: { type: string; count: number }[]; participants: KillParticipant[]; location: string };
 export type PlayerHit = { id: string; name: string; guild: string; alliance: string; killFame: number };
 export type PlayerEvent = KillSummary & { kind: "kill" | "death" };
-export type PlayerProfile = { id: string; name: string; guild: string; alliance: string; killFame: number; deathFame: number; fameRatio: number; events: PlayerEvent[] };
+export type PlayerProfile = { id: string; guildId?: string; name: string; guild: string; alliance: string; killFame: number; deathFame: number; fameRatio: number; events: PlayerEvent[] };
+
+export type GuildHit = { id: string; name: string; alliance: string; killFame: number; deathFame: number };
+export type GuildMember = { id: string; name: string; killFame: number; deathFame: number; fameRatio: number };
+export type GuildProfile = {
+  id: string; name: string; alliance: string; allianceTag: string; founder: string; founded: string; memberCount: number;
+  killFame: number; deathFame: number; attacksWon: number; defensesWon: number; members: GuildMember[];
+};
 
 /** "há 5 h", "há 12 min"... */
 export function timeAgo(iso: string, now = Date.now()) {

@@ -80,7 +80,7 @@ export function gearOf(equipment: unknown): Gear {
 export function sideOf(raw: unknown): KillSide {
   const p = obj(raw);
   return {
-    id: str(p["Id"]), name: str(p["Name"]), guild: str(p["GuildName"]), alliance: str(p["AllianceName"]), allianceTag: str(p["AllianceTag"]),
+    id: str(p["Id"]), guildId: str(p["GuildId"]), name: str(p["Name"]), guild: str(p["GuildName"]), alliance: str(p["AllianceName"]), allianceTag: str(p["AllianceTag"]),
     ip: Math.round(num(p["AverageItemPower"])), gear: gearOf(p["Equipment"]),
   };
 }

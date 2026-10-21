@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { KillFeed } from "@/components/kill-feed";
 import { KillDetailView } from "@/components/kill-detail";
+import { GuildView } from "@/components/guild-view";
 import { PlayerView } from "@/components/player-view";
 import { SectionBoundary } from "@/components/section-boundary";
 import type { Server } from "@/lib/albion-types";
 
-type Search = { servidor: Server; jogador?: string; kill?: number };
+type Search = { servidor: Server; jogador?: string; guilda?: string; kill?: number };
 
 export const Route = createFileRoute("/kills")({
   ssr: false,
@@ -13,7 +14,8 @@ export const Route = createFileRoute("/kills")({
     const servidor = search["servidor"] === "europe" || search["servidor"] === "asia" ? search["servidor"] : "americas";
     const kill = Number(search["kill"]);
     const jogador = typeof search["jogador"] === "string" && /^[A-Za-z0-9_-]{10,40}$/.test(search["jogador"]) ? search["jogador"] : undefined;
-    return { servidor, ...(Number.isInteger(kill) && kill > 0 ? { kill } : {}), ...(jogador ? { jogador } : {}) };
+    const guilda = typeof search["guilda"] === "string" && /^[A-Za-z0-9_-]{10,40}$/.test(search["guilda"]) ? search["guilda"] : undefined;
+    return { servidor, ...(Number.isInteger(kill) && kill > 0 ? { kill } : {}), ...(jogador ? { jogador } : {}), ...(guilda ? { guilda } : {}) };
   },
   head: () => ({ meta: [
     { title: "Kills — PingoraX" },
@@ -27,9 +29,9 @@ export const Route = createFileRoute("/kills")({
 });
 
 function KillsPage() {
-  const { servidor, jogador, kill } = Route.useSearch();
+  const { servidor, jogador, guilda, kill } = Route.useSearch();
   const navigate = useNavigate({ from: "/kills" });
-  const home = kill === undefined && jogador === undefined;
+  const home = kill === undefined && jogador === undefined && guilda === undefined;
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       {home && (
@@ -41,6 +43,7 @@ function KillsPage() {
       <SectionBoundary label="Kills">
         {kill !== undefined ? <KillDetailView server={servidor} id={kill} />
           : jogador !== undefined ? <PlayerView server={servidor} id={jogador} />
+          : guilda !== undefined ? <GuildView server={servidor} id={guilda} />
           : <KillFeed server={servidor} onServer={(s) => void navigate({ search: { servidor: s } })} />}
       </SectionBoundary>
     </main>
