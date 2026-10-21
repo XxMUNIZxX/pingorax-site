@@ -410,6 +410,14 @@ export type Database = {
         Update: { created_at?: string; description?: string | null; id?: string; name?: string; owner_id?: string; slug?: string }
         Relationships: []
       }
+      profiles: {
+        Row: { albion_guild: string | null; albion_nick: string | null; avatar_url: string | null; created_at: string; display_name: string; guild_id: string | null; guild_leader: boolean; updated_at: string; user_id: string }
+        Insert: { albion_guild?: string | null; albion_nick?: string | null; avatar_url?: string | null; created_at?: string; display_name: string; guild_id?: string | null; guild_leader?: boolean; updated_at?: string; user_id: string }
+        Update: { albion_guild?: string | null; albion_nick?: string | null; avatar_url?: string | null; created_at?: string; display_name?: string; guild_id?: string | null; guild_leader?: boolean; updated_at?: string; user_id?: string }
+        Relationships: [
+          { foreignKeyName: "profiles_guild_id_fkey"; columns: ["guild_id"]; isOneToOne: false; referencedRelation: "guilds"; referencedColumns: ["id"] },
+        ]
+      }
       waitlist: {
         Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }
         Insert: { created_at?: string; event_id: string; id?: string; nick: string; weapon_id: string }

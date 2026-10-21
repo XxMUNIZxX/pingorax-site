@@ -64,6 +64,13 @@ export function AuthForm({ redirectPath = "/criar", title }: { redirectPath?: st
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /** Entrar com Discord ou Google: o Supabase leva a pessoa ao provedor e a traz de volta para esta página. */
+  async function oauth(provider: "discord" | "google") {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}${redirectPath}` } });
+    if (error) { toast.error(provider === "discord" ? "Não foi possível entrar com o Discord agora." : "Não foi possível entrar com o Google agora."); setLoading(false); }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -82,6 +89,11 @@ export function AuthForm({ redirectPath = "/criar", title }: { redirectPath?: st
     <main className="mx-auto max-w-sm px-4 py-16">
       <form onSubmit={submit} className="panel space-y-4 p-6">
         <h1 className="text-2xl font-bold text-gold">{title ?? (mode === "in" ? "Entrar" : "Criar conta")}</h1>
+        <div className="grid gap-2">
+          <Button type="button" variant="outline" className="w-full" disabled={loading} onClick={() => void oauth("discord")}>Entrar com Discord</Button>
+          <Button type="button" variant="outline" className="w-full" disabled={loading} onClick={() => void oauth("google")}>Entrar com Google</Button>
+        </div>
+        <p className="text-center text-xs uppercase tracking-widest text-muted-foreground">ou com e-mail</p>
         <div className="space-y-1"><Label>Email</Label><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div className="space-y-1"><Label>Senha</Label><Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
         <Button variant="gold" className="w-full" disabled={loading}>{mode === "in" ? "Entrar" : "Cadastrar"}</Button>
