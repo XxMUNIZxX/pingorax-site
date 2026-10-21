@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchGuildBySlug, fetchGuildEvents } from "@/lib/guilds";
 import { fetchGuildPeople, type GuildPerson } from "@/lib/profiles";
 import { formatDate, type GameEvent } from "@/lib/events";
+import { useSession } from "@/components/panel-access";
 import { getShareImage } from "@/lib/share-image.functions";
 import { DEFAULT_SHARE_IMAGE, SHARE_ORIGIN } from "@/lib/share-image";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,8 @@ function PersonChip({ person }: { person: GuildPerson }) {
 function GuildPage() {
   const { slug } = Route.useParams();
   const { guild } = Route.useLoaderData();
-  const events = useQuery({ queryKey: ["guild-events", guild?.id], queryFn: () => fetchGuildEvents(guild!.id), enabled: !!guild });
+  const session = useSession();
+  const events = useQuery({ queryKey: ["guild-events", guild?.id], queryFn: () => fetchGuildEvents(guild!.id), enabled: !!guild && !!session });
 
   const people = useQuery({ queryKey: ["guild-people", guild?.id], queryFn: () => fetchGuildPeople(guild!.id, guild!.owner_id), enabled: !!guild });
 
@@ -73,7 +75,8 @@ function GuildPage() {
 
       <h2 className="mt-8 text-xl font-bold">Próximos conteúdos</h2>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {events.isPending && <p className="text-muted-foreground">Carregando...</p>}
+        {!session && <p className="text-muted-foreground md:col-span-2">Entre com Discord ou Google para ver os conteúdos desta guilda. <Link to="/perfil" className="text-primary underline">Entrar</Link></p>}
+        {!!session && events.isPending && <p className="text-muted-foreground">Carregando...</p>}
         {events.isError && <p role="alert" className="text-destructive">Não foi possível carregar os conteúdos.</p>}
         {events.data && events.data.upcoming.length === 0 && <p className="text-muted-foreground md:col-span-2">Nenhum conteúdo marcado por enquanto. Volte mais tarde!</p>}
         {events.data?.upcoming.map((event) => <EventRow key={event.id} event={event} />)}

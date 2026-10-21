@@ -19,6 +19,7 @@ import { fetchWaitlist } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { EventChat } from "@/components/event-chat";
+import { RequireLogin, useMyNick } from "@/components/require-login";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
@@ -89,6 +90,10 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 
 function EventPage() {
   const { id } = Route.useParams();
+  return <RequireLogin redirectPath={`/evento/${id}`}><EventContent id={id} /></RequireLogin>;
+}
+
+function EventContent({ id }: { id: string }) {
   const { isPrivate } = Route.useLoaderData();
   const qc = useQueryClient();
   const { data: ev, isLoading } = useQuery({ queryKey: ["event", id], queryFn: () => fetchEvent(id) });
@@ -99,7 +104,10 @@ function EventPage() {
   });
   const waitlistQuery = useQuery({ queryKey: ["waitlist", id], queryFn: () => fetchWaitlist(id), retry: false });
   const waitlist = waitlistQuery.data ?? null;  // null = migração 0011 ainda não rodada: sem fila
-  const [nick, setNick] = useState("");
+  const me = useMyNick();
+  const [typedNick, setTypedNick] = useState("");
+  // Logado: o nick vem do perfil. Só pede para digitar se o perfil ainda não existe no Supabase.
+  const nick = me.legacy ? typedNick : me.nick ?? "";
   const [weaponId, setWeaponId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const refreshDiscord = useServerFn(refreshDiscordMessage);
@@ -142,11 +150,11 @@ function EventPage() {
     } else if (joiningQueue) {
       toast.success("Você entrou na fila! Se abrir vaga, seu ping é confirmado sozinho.");
       void refreshDiscord({ data: { eventId: id } }).catch(() => undefined);
-      setNick(""); setWeaponId(null);
+      setWeaponId(null);
     } else {
       toast.success("Ping confirmado! Nos vemos lá.");
       void refreshDiscord({ data: { eventId: id } }).catch(() => undefined);
-      setNick(""); setWeaponId(null);
+      setWeaponId(null);
     }
     qc.invalidateQueries({ queryKey: ["event", id] });
     qc.invalidateQueries({ queryKey: ["waitlist", id] });
@@ -191,8 +199,8 @@ function EventPage() {
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-border py-4">
           <span className="text-sm font-bold text-foreground">Como pingar</span>
           <Step n={1} label="Escolha sua arma" done={!!weaponId} />
-          <Step n={2} label="Digite seu nick" done={nick.trim().length >= 2} />
-          <Step n={3} label="Clique em Pingar" done={false} />
+          {me.legacy && <Step n={2} label="Digite seu nick" done={nick.trim().length >= 2} />}
+          <Step n={me.legacy ? 3 : 2} label="Clique em Pingar" done={false} />
         </div>
       )}
 
@@ -242,7 +250,9 @@ function EventPage() {
           </section>
         )}
         <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="player-nick">Seu nick no Albion</Label><Input id="player-nick" placeholder="Seu nick no jogo" value={nick} onChange={(e) => setNick(e.target.value)} maxLength={32} /></div>
+          {me.legacy
+            ? <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="player-nick">Seu nick no Albion</Label><Input id="player-nick" placeholder="Seu nick no jogo" value={typedNick} onChange={(e) => setTypedNick(e.target.value)} maxLength={32} /></div>
+            : <p className="min-w-0 flex-1 text-sm text-muted-foreground">Você pinga como <b className="text-foreground">{me.nick}</b> · <Link to="/perfil" className="underline hover:text-primary">mudar nick</Link></p>}
           <Button variant="gold" type="submit" disabled={sending || (full && !canQueue)} className="sm:min-w-40">{sending ? "Confirmando..." : joiningQueue ? "Entrar na fila" : full && !canQueue ? "Lotado" : "Pingar"}</Button>
         </div>
       </form>

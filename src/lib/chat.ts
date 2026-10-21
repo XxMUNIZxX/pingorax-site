@@ -31,8 +31,9 @@ export async function fetchChat(eventId: string): Promise<ChatMessage[] | null> 
   return mergeMessages([], (data ?? []) as ChatMessage[]);
 }
 
-export async function sendChat(eventId: string, nick: string, body: string): Promise<ChatMessage> {
-  const { data, error } = await supabase.rpc("send_event_message", { _event_id: eventId, _nick: nick, _body: body });
+/** Envia como a pessoa logada: o nick vem do perfil dela, no servidor. */
+export async function sendChat(eventId: string, body: string): Promise<ChatMessage> {
+  const { data, error } = await supabase.rpc("send_event_message", { _event_id: eventId, _body: body });
   if (error) throw error;
   return data as unknown as ChatMessage;
 }

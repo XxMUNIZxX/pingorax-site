@@ -5,19 +5,16 @@ import { MessageCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useMyNick } from "@/components/require-login";
 import { CHAT_MAX, cleanMessage, fetchChat, mergeMessages, sendChat, type ChatMessage } from "@/lib/chat";
 import { timeAgo } from "@/lib/albion-types";
-
-const NICK_KEY = "pingorax:chat-nick";
-const readNick = () => { try { return localStorage.getItem(NICK_KEY) ?? ""; } catch { return ""; } };
-const saveNick = (nick: string) => { try { localStorage.setItem(NICK_KEY, nick); } catch { /* sem armazenamento: tudo bem */ } };
 
 /** Chat ao vivo do conteúdo. Só aparece quando a migração 0018 já foi rodada. */
 export function EventChat({ eventId, canModerate }: { eventId: string; canModerate: boolean }) {
   const qc = useQueryClient();
   const key = ["chat", eventId];
   const chat = useQuery({ queryKey: key, queryFn: () => fetchChat(eventId), retry: false });
-  const [nick, setNick] = useState(readNick);
+  const me = useMyNick();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -41,18 +38,16 @@ export function EventChat({ eventId, canModerate }: { eventId: string; canModera
 
   useEffect(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, [messages.length]);
 
-  if (chat.data === null || chat.isError) return null;
+  // Sem chat instalado, ou sem perfil com nick (migração de perfil não rodada): não mostra.
+  if (chat.data === null || chat.isError || !me.nick) return null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const body = cleanMessage(text);
-    const who = nick.trim();
-    if (who.length < 2) { toast.error("Digite o nick com que você pingou."); return; }
     if (!body) { toast.error(`Escreva de 1 a ${CHAT_MAX} caracteres.`); return; }
     setSending(true);
     try {
-      const sent = await sendChat(eventId, who, body);
-      saveNick(who);
+      const sent = await sendChat(eventId, body);
       setText("");
       qc.setQueryData<ChatMessage[] | null>(key, (old) => mergeMessages(old ?? [], [sent]));
     } catch (err) {
@@ -82,8 +77,7 @@ export function EventChat({ eventId, canModerate }: { eventId: string; canModera
         ))}
       </div>
       <form onSubmit={submit} className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Input className="sm:w-44" placeholder="Seu nick (o do ping)" aria-label="Seu nick" value={nick} onChange={(e) => setNick(e.target.value)} maxLength={32} />
-        <Input className="min-w-0 flex-1" placeholder="Escreva uma mensagem" aria-label="Mensagem" value={text} onChange={(e) => setText(e.target.value)} maxLength={CHAT_MAX} />
+        <Input className="min-w-0 flex-1" placeholder={`Falar como ${me.nick}`} aria-label="Mensagem" value={text} onChange={(e) => setText(e.target.value)} maxLength={CHAT_MAX} />
         <Button type="submit" variant="gold" disabled={sending}>{sending ? "Enviando..." : "Enviar"}</Button>
       </form>
     </section>

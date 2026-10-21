@@ -617,7 +617,7 @@ export type Database = {
       can_edit_event: { Args: { _event_id: string }; Returns: boolean }
       can_manage_event: { Args: { _event_id: string }; Returns: boolean }
       send_event_message: {
-        Args: { _body: string; _event_id: string; _nick: string }
+        Args: { _body: string; _event_id: string }
         Returns: { body: string; created_at: string; event_id: string; id: string; nick: string }
       }
       event_editor_directory: {
