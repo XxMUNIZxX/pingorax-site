@@ -10,6 +10,12 @@ import { getVoiceStatus, getVoiceToken } from "@/lib/voice.functions";
 type Person = { id: string; name: string; speaking: boolean; muted: boolean; me: boolean };
 type Screen = { id: string; name: string; track: RemoteTrack };
 
+/** Motivo curto do erro, para quem for pedir ajuda. */
+function reason(err: unknown): string {
+  const text = err instanceof Error ? err.message : typeof err === "string" ? err : "erro desconhecido";
+  return text.replace(/\s+/g, " ").slice(0, 120);
+}
+
 /** Vídeo de uma tela compartilhada por outra pessoa. */
 function ScreenView({ screen }: { screen: Screen }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -49,7 +55,9 @@ export function VoiceRoom({ eventId }: { eventId: string }) {
   async function join() {
     setJoining(true);
     try {
-      const granted = await getVoiceToken({ data: { eventId } });
+      let granted: Awaited<ReturnType<typeof getVoiceToken>>;
+      try { granted = await getVoiceToken({ data: { eventId } }); }
+      catch (err) { console.error("voz: chave de acesso", err); toast.error(`O site não conseguiu gerar a chave da sala (${reason(err)}).`); return; }
       if (!granted.ok) { toast.error(granted.error); return; }
       const { Room, RoomEvent, Track } = await import("livekit-client");
       const room = new Room({ adaptiveStream: true, dynacast: true });
@@ -83,14 +91,16 @@ export function VoiceRoom({ eventId }: { eventId: string }) {
         setConnected(false); setSharing(false); setMicOn(true); setPeople([]); setScreens([]);
         if (audioHost.current) audioHost.current.replaceChildren();
       });
-      await room.connect(granted.url, granted.token);
+      try { await room.connect(granted.url, granted.token); }
+      catch (err) { console.error("voz: conexão com o LiveKit", err); toast.error(`Não consegui conectar ao servidor de voz (${reason(err)}). Confira se LIVEKIT_URL começa com wss://.`); return; }
       roomRef.current = room;
       setConnected(true);
       try { await room.localParticipant.setMicrophoneEnabled(true); setMicOn(true); }
       catch { setMicOn(false); toast.error("Não consegui usar o microfone. Libere a permissão no navegador."); }
       refresh();
-    } catch {
-      toast.error("Não consegui entrar na sala de voz. Tente de novo.");
+    } catch (err) {
+      console.error("voz: entrar", err);
+      toast.error(`Não consegui entrar na sala de voz (${reason(err)}).`);
     } finally { setJoining(false); }
   }
 
