@@ -29,7 +29,7 @@ export const Route = createFileRoute("/evento/$id")({
   },
   head: ({ loaderData }) => {
     const event = loaderData?.event;
-    const title = event ? `${event.title} — Pings Albion Online` : "Pingar no conteúdo — Albion Online";
+    const title = event ? `${event.title} — PingoraX` : "Pingar no conteúdo — PingoraX";
     const desc = event
       ? `${formatDate(event.starts_at)} · ${event.signups.length}/${event.max_players} players · Escolha sua arma e garanta sua vaga!`
       : "Escolha sua arma e garanta sua vaga no conteúdo.";
