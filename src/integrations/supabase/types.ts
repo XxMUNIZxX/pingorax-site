@@ -437,6 +437,30 @@ export type Database = {
           { foreignKeyName: "event_messages_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
         ]
       }
+      loot_sessions: {
+        Row: { created_at: string; created_by: string; event_id: string; id: string; people: Json; silver: number; split_config: Json; status: string; title: string }
+        Insert: { created_at?: string; created_by?: string; event_id: string; id?: string; people?: Json; silver?: number; split_config?: Json; status?: string; title?: string }
+        Update: { created_at?: string; created_by?: string; event_id?: string; id?: string; people?: Json; silver?: number; split_config?: Json; status?: string; title?: string }
+        Relationships: [
+          { foreignKeyName: "loot_sessions_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+        ]
+      }
+      loot_items: {
+        Row: { created_at: string; id: string; looted_by: string | null; name: string; quantity: number; session_id: string; unit_value: number }
+        Insert: { created_at?: string; id?: string; looted_by?: string | null; name: string; quantity?: number; session_id: string; unit_value?: number }
+        Update: { created_at?: string; id?: string; looted_by?: string | null; name?: string; quantity?: number; session_id?: string; unit_value?: number }
+        Relationships: [
+          { foreignKeyName: "loot_items_session_id_fkey"; columns: ["session_id"]; isOneToOne: false; referencedRelation: "loot_sessions"; referencedColumns: ["id"] },
+        ]
+      }
+      dps_entries: {
+        Row: { damage: number; healing: number; nick: string; session_id: string }
+        Insert: { damage?: number; healing?: number; nick: string; session_id: string }
+        Update: { damage?: number; healing?: number; nick?: string; session_id?: string }
+        Relationships: [
+          { foreignKeyName: "dps_entries_session_id_fkey"; columns: ["session_id"]; isOneToOne: false; referencedRelation: "loot_sessions"; referencedColumns: ["id"] },
+        ]
+      }
       waitlist: {
         Row: { created_at: string; event_id: string; id: string; nick: string; weapon_id: string }
         Insert: { created_at?: string; event_id: string; id?: string; nick: string; weapon_id: string }
