@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { PanelSessionProvider, usePanelAccess } from "@/components/panel-access";
 import { Button } from "@/components/ui/button";
+import { StartAlert } from "@/components/start-alert";
 
 function NotFoundComponent() {
   return (
@@ -131,6 +132,7 @@ function RootComponent() {
           <AccountButton />
         </div>
       </header>
+      <StartAlert />
       {/* Bloco de conteúdo: dá contraste entre a página e o fundo */}
       <div id="conteudo" tabIndex={-1} className="mx-2 my-4 max-w-[76rem] rounded-2xl border border-border/70 bg-background/70 shadow-2xl shadow-black/30 backdrop-blur-sm sm:mx-4 xl:mx-auto">
       <Outlet />
