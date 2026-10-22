@@ -120,17 +120,19 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PanelSessionProvider>
+      <a href="#conteudo" className="sr-only z-50 rounded-md bg-primary px-4 py-2 font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Pular para o conteúdo</a>
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
           <Link to="/" className="flex shrink-0 items-center gap-2 font-display text-2xl font-extrabold text-gold" aria-label="PingoraX — página inicial">
             <img src="/logo-96.png" alt="" width={36} height={36} className="h-9 w-9 object-contain" />
             PingoraX
           </Link>
           <PanelNavigation />
+          <AccountButton />
         </div>
       </header>
       {/* Bloco de conteúdo: dá contraste entre a página e o fundo */}
-      <div className="mx-2 my-4 max-w-[76rem] rounded-2xl border border-border/70 bg-background/70 shadow-2xl shadow-black/30 backdrop-blur-sm sm:mx-4 xl:mx-auto">
+      <div id="conteudo" tabIndex={-1} className="mx-2 my-4 max-w-[76rem] rounded-2xl border border-border/70 bg-background/70 shadow-2xl shadow-black/30 backdrop-blur-sm sm:mx-4 xl:mx-auto">
       <Outlet />
       </div>
       <SiteFooter />
@@ -143,7 +145,7 @@ function RootComponent() {
 function PanelNavigation() {
   const { isAdmin, session } = usePanelAccess();
   const active = { className: "bg-secondary text-foreground", "aria-current": "page" as const };
-  return <nav aria-label="Painéis" className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 sm:flex-wrap sm:justify-end sm:overflow-visible">
+  return <nav aria-label="Painéis" className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 md:order-none md:w-auto md:flex-1 md:flex-wrap md:justify-center md:overflow-visible">
     <Button variant="ghost" size="sm" asChild><Link to="/conteudos" activeProps={active}>Conteúdos</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/builds" activeProps={active}>Builds</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/lutas" activeProps={active}>Lutas</Link></Button>
@@ -151,8 +153,17 @@ function PanelNavigation() {
     {WORLD_MAP_ENABLED && <Button variant="ghost" size="sm" asChild><Link to="/mapa" activeProps={active}>Mapa</Link></Button>}
     <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={active}>Criar conteúdo</Link></Button>
     {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={active}>Administração</Link></Button>}
-    <Button variant="ghost" size="sm" asChild><Link to="/perfil" activeProps={active}>{session ? "Meu perfil" : "Entrar"}</Link></Button>
   </nav>;
+}
+
+/** Entrar (destaque) ou Meu perfil, sempre no canto direito do cabeçalho. */
+function AccountButton() {
+  const { session } = usePanelAccess();
+  return (
+    <Button variant={session ? "outline" : "gold"} size="sm" className="ml-auto md:ml-0" asChild>
+      <Link to="/perfil">{session ? "Meu perfil" : "Entrar"}</Link>
+    </Button>
+  );
 }
 
 function SiteFooter() {
@@ -165,6 +176,8 @@ function SiteFooter() {
           <Link to="/conteudos" className="hover:text-foreground">Conteúdos</Link>
           <Link to="/lutas" search={{ servidor: "americas" }} className="hover:text-foreground">Lutas</Link>
           <Link to="/kills" search={{ servidor: "americas" }} className="hover:text-foreground">Kills</Link>
+          <Link to="/builds" className="hover:text-foreground">Builds</Link>
+          <Link to="/perfil" className="hover:text-foreground">Meu perfil</Link>
           {WORLD_MAP_ENABLED && <Link to="/mapa" className="hover:text-foreground">Mapa</Link>}
         </nav>
       </div>

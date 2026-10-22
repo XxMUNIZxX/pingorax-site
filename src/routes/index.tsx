@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Bot, CalendarDays, Hammer, Skull, Swords, Users } from "lucide-react";
+import { ArrowRight, Bot, CalendarDays, Hammer, LogIn, MessageCircle, Skull, Swords, Users, Volume2 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import hero from "@/assets/hero.jpg";
 import { fetchBattleList, fetchRecentKills } from "@/lib/albion.functions";
@@ -124,6 +124,13 @@ const AREAS: Area[] = [
     points: ["Histórico de kills e mortes de cada jogador", "Participantes, dano e cura", "Equipamento e inventário da vítima"] },
 ];
 
+const HIGHLIGHTS: { icon: ComponentType<{ className?: string }>; title: string; text: string }[] = [
+  { icon: LogIn, title: "Entre com Discord ou Google", text: "Um login só: seu nick do Albion fica no perfil e vale em todo ping." },
+  { icon: MessageCircle, title: "Chat em cada conteúdo", text: "Combine ponto de encontro e build com quem pingou, ao vivo." },
+  { icon: Volume2, title: "Voz e tela", text: "Sala de voz e compartilhamento de tela na própria página do conteúdo." },
+  { icon: Skull, title: "Estatísticas de kills", text: "K/D, armas favoritas e horários de jogadores e guildas." },
+];
+
 function AreaLink({ to, children }: { to: Area["to"]; children: ReactNode }) {
   const className = "cta-primary w-full sm:w-auto";
   if (to === "/lutas") return <Link to="/lutas" search={{ servidor: "americas" }} className={className}>{children}</Link>;
@@ -150,6 +157,17 @@ function Home() {
           </div>
           <LivePanel />
         </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pt-10" aria-label="Novidades">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {HIGHLIGHTS.map(({ icon: Icon, title, text }) => (
+            <li key={title} className="flex gap-3 rounded-xl border border-border/70 bg-card/40 p-4">
+              <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span><b className="block">{title}</b><span className="text-sm text-muted-foreground">{text}</span></span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-12" aria-labelledby="areas-heading">
@@ -191,7 +209,7 @@ function Home() {
       <section className="mx-auto max-w-6xl px-4 py-12" aria-labelledby="steps-heading">
         <h2 id="steps-heading" className="text-3xl font-extrabold">Como pingar num conteúdo</h2>
         <ol className="mt-8 grid gap-4 md:grid-cols-3">
-          {[["Escolha o conteúdo", "Abra a lista e veja data, caller e vagas."], ["Pingue com a sua arma", "Selecione a arma que você vai levar e confirme."], ["Apareça no Discord", "O cartão do canal atualiza na hora com o seu nome."]].map(([title, text], i) => (
+          {[["Escolha o conteúdo", "Abra a lista e veja data, caller e vagas. Ver é livre."], ["Entre e pingue com a sua arma", "Entre com Discord ou Google (o nick do Albion é pedido só na primeira vez), escolha a arma e confirme."], ["Combine no chat e na voz", "O cartão do Discord atualiza na hora, e a página do conteúdo tem chat e sala de voz."]].map(([title, text], i) => (
             <li key={title} className="flex gap-4 rounded-xl border border-border/70 bg-card/40 p-5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-lg font-extrabold text-primary" aria-hidden>{i + 1}</span>
               <span><b className="block text-lg">{title}</b><span className="text-sm text-muted-foreground">{text}</span></span>
