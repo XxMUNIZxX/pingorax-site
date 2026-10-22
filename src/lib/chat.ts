@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { linkClient } from "@/lib/event-link";
 
 export type ChatMessage = { id: string; event_id: string; nick: string; body: string; created_at: string };
 export const CHAT_MAX = 500;
@@ -26,7 +27,7 @@ export function mergeMessages(current: ChatMessage[], incoming: ChatMessage[], l
 
 /** Últimas mensagens do conteúdo. `null` quando o chat ainda não foi instalado no Supabase. */
 export async function fetchChat(eventId: string): Promise<ChatMessage[] | null> {
-  const { data, error } = await supabase.from("event_messages").select(COLUMNS).eq("event_id", eventId).order("created_at", { ascending: false }).limit(200);
+  const { data, error } = await linkClient(eventId).from("event_messages").select(COLUMNS).eq("event_id", eventId).order("created_at", { ascending: false }).limit(200);
   if (error) { if (isMissingChat(error)) return null; throw error; }
   return mergeMessages([], (data ?? []) as ChatMessage[]);
 }

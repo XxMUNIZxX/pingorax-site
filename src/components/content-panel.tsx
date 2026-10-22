@@ -385,7 +385,7 @@ function EventEditor({ userId, draft, setDraft, onSaved }: { userId: string; dra
         {privacySupported && (
           <label className="flex items-start gap-3 rounded-md border border-border p-3 md:col-span-2">
             <Switch checked={draft.is_private === true} onCheckedChange={(v) => set({ is_private: v })} aria-label="Conteúdo privado" />
-            <span className="text-sm"><span className="font-semibold">Conteúdo privado (só com o link)</span><br /><span className="text-muted-foreground">Não aparece na página inicial, na lista de conteúdos nem na página da guilda. Quem recebeu o link ou viu o card no Discord abre e pinga normalmente. Quem tiver o link pode repassar.</span></span>
+            <span className="text-sm"><span className="font-semibold">Conteúdo privado (só com o link)</span><br /><span className="text-muted-foreground">Não aparece na página inicial, na lista de conteúdos nem na página da guilda. Quem recebeu o link ou viu o card no Discord abre e pinga normalmente. Quem tiver o link pode repassar. O banco esconde o conteúdo privado de quem não tem o link.</span></span>
           </label>
         )}
         {!draft.id && (

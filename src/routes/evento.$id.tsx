@@ -97,13 +97,13 @@ function EventPage() {
 function EventContent({ id }: { id: string }) {
   const { isPrivate } = Route.useLoaderData();
   const qc = useQueryClient();
-  const { data: ev, isLoading } = useQuery({ queryKey: ["event", id], queryFn: () => fetchEvent(id) });
+  const { data: ev, isLoading } = useQuery({ queryKey: ["event", id], queryFn: () => fetchEvent(id), refetchInterval: isPrivate ? 8000 : false });
   const manager = useQuery({
     queryKey: ["can-manage", id],
     queryFn: async () => { const { data } = await supabase.rpc("can_manage_event", { _event_id: id }); return data === true; },
     retry: false, staleTime: 60_000,
   });
-  const waitlistQuery = useQuery({ queryKey: ["waitlist", id], queryFn: () => fetchWaitlist(id), retry: false });
+  const waitlistQuery = useQuery({ queryKey: ["waitlist", id], queryFn: () => fetchWaitlist(id), retry: false, refetchInterval: isPrivate ? 8000 : false });
   const waitlist = waitlistQuery.data ?? null;  // null = migração 0011 ainda não rodada: sem fila
   const me = useMyNick();
   const [typedNick, setTypedNick] = useState("");
@@ -274,7 +274,7 @@ function EventContent({ id }: { id: string }) {
         </section>
       )}
       <VoiceRoom eventId={id} />
-      <EventChat eventId={id} canModerate={manager.data === true} />
+      <EventChat eventId={id} canModerate={manager.data === true} poll={isPrivate} />
     </main>
   );
 }

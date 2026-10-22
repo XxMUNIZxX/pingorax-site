@@ -1,6 +1,7 @@
 import { publicShareClient } from "@/lib/share-image.server";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { serverEnv } from "@/lib/server-env";
+import { LINK_HEADER } from "@/lib/event-link";
 import type { Server } from "@/lib/albion-types";
 import { isMissingRoleColumn, roleLabel } from "@/lib/weapon-roles";
 
@@ -24,14 +25,21 @@ export const discordConfig = (): DiscordConfig => ({
   publicKey: env("DISCORD_PUBLIC_KEY")?.toLowerCase(), botToken: env("DISCORD_BOT_TOKEN"), channelId: env("DISCORD_CHANNEL_ID"), appId: env("DISCORD_APP_ID"),
 });
 
-export function anonClient() {
+/**
+ * Cliente do Supabase usado pelo bot e pelo servidor. Conteúdo privado só aparece para quem tem o link (migração 0020):
+ * - com SUPABASE_SERVICE_ROLE_KEY no servidor, o bot enxerga tudo (necessário para lembretes e limpeza de privados);
+ * - sem ela, passando o `eventId` o cliente manda o cabeçalho do link e abre aquele conteúdo, mesmo privado.
+ */
+export function anonClient(eventId?: string) {
   const url = serverEnv("SUPABASE_URL"); const key = serverEnv("SUPABASE_PUBLISHABLE_KEY");
   if (!url || !key) throw new Error("Servidor sem SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY.");
-  return publicShareClient(url, key);
+  const service = serverEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (service) return publicShareClient(url, service);
+  return publicShareClient(url, key, eventId ? { [LINK_HEADER]: eventId } : undefined);
 }
 
 export async function loadEvent(id: string): Promise<Row | null> {
-  const query = (cols: string) => anonClient().from("events")
+  const query = (cols: string) => anonClient(id).from("events")
     .select(`id,title,description,starts_at,max_players,mode,caller_name,content_type,event_weapons(${cols}),signups(id,nick,weapon_id,created_at)`)
     .eq("id", id).maybeSingle();
   let { data, error } = await query("id,name,slots,position,icon_code,icon_path,role");
@@ -41,13 +49,13 @@ export async function loadEvent(id: string): Promise<Row | null> {
   const row = (data as unknown as Row | null) ?? null;
   if (row) {
     // Fila de espera (migração 0011): se a tabela ainda não existe, o card só não mostra a fila.
-    const queue = await anonClient().from("waitlist").select("nick,weapon_id").eq("event_id", id).order("created_at");
+    const queue = await anonClient(id).from("waitlist").select("nick,weapon_id").eq("event_id", id).order("created_at");
     if (!queue.error) row.waitlist = queue.data ?? [];
     // Quem confirmou "estou a caminho" (migração 0017): sem a tabela, o card só não mostra os ✅.
-    const confirmed = await anonClient().from("confirmations").select("nick").eq("event_id", id);
+    const confirmed = await anonClient(id).from("confirmations").select("nick").eq("event_id", id);
     if (!confirmed.error) row.confirmed = (confirmed.data ?? []).map((c) => c.nick);
     // Guilda do conteúdo (migração 0013): se não existir, o card só não mostra o nome dela.
-    const owner = await anonClient().from("events").select("guild_id").eq("id", id).maybeSingle();
+    const owner = await anonClient(id).from("events").select("guild_id").eq("id", id).maybeSingle();
     if (!owner.error && owner.data?.guild_id) {
       const guild = await anonClient().from("guilds").select("name,slug").eq("id", owner.data.guild_id).maybeSingle();
       if (!guild.error) row.guild = guild.data ?? null;
@@ -477,7 +485,7 @@ async function buildCommand(body: Interaction) {
 /** Atualiza o card do conteúdo no canal (ex.: depois de uma confirmação). Silencioso se o conteúdo não foi postado. */
 async function refreshCard(eventId: string) {
   const cfg = discordConfig();
-  const { data: post } = await anonClient().from("discord_posts").select("channel_id,message_id").eq("event_id", eventId).maybeSingle();
+  const { data: post } = await anonClient(eventId).from("discord_posts").select("channel_id,message_id").eq("event_id", eventId).maybeSingle();
   const event = post ? await loadEvent(eventId) : null;
   if (post && event) await editEventMessage(event, post.channel_id, post.message_id, cfg);
 }
@@ -572,7 +580,7 @@ export async function notifyPromotions(cfg: DiscordConfig, eventId?: string): Pr
   let sent = 0;
   for (const [id, entries] of byEvent) {
     try {
-      const { data: post } = await anonClient().from("discord_posts").select("channel_id,message_id").eq("event_id", id).maybeSingle();
+      const { data: post } = await anonClient(id).from("discord_posts").select("channel_id,message_id").eq("event_id", id).maybeSingle();
       const event = post ? await loadEvent(id) : null;
       if (!post || !event) continue;
       await sendRawMessage(post.channel_id, cfg, { content: promotionText(event, entries), allowed_mentions: { parse: [] } });

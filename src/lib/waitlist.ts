@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { linkClient } from "@/lib/event-link";
 
 export type WaitlistEntry = { id: string; event_id: string; weapon_id: string; nick: string; created_at: string };
 
@@ -10,7 +11,7 @@ export function isMissingWaitlist(error: { message?: string | undefined; code?: 
 
 /** Fila de espera de um conteúdo, da mais antiga para a mais nova. `null` quando a migração ainda não foi rodada. */
 export async function fetchWaitlist(eventId: string): Promise<WaitlistEntry[] | null> {
-  const { data, error } = await supabase.from("waitlist").select("id,event_id,weapon_id,nick,created_at").eq("event_id", eventId).order("created_at");
+  const { data, error } = await linkClient(eventId).from("waitlist").select("id,event_id,weapon_id,nick,created_at").eq("event_id", eventId).order("created_at");
   if (error) { if (isMissingWaitlist(error)) return null; throw error; }
   return (data ?? []) as WaitlistEntry[];
 }

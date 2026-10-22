@@ -10,10 +10,11 @@ import { CHAT_MAX, cleanMessage, fetchChat, mergeMessages, sendChat, type ChatMe
 import { timeAgo } from "@/lib/albion-types";
 
 /** Chat ao vivo do conteúdo. Só aparece quando a migração 0018 já foi rodada. */
-export function EventChat({ eventId, canModerate }: { eventId: string; canModerate: boolean }) {
+export function EventChat({ eventId, canModerate, poll = false }: { eventId: string; canModerate: boolean; poll?: boolean }) {
   const qc = useQueryClient();
   const key = ["chat", eventId];
-  const chat = useQuery({ queryKey: key, queryFn: () => fetchChat(eventId), retry: false });
+  // Conteúdo privado não recebe o tempo real do banco (ele não vê o cabeçalho do link): atualiza de poucos em poucos segundos.
+  const chat = useQuery({ queryKey: key, queryFn: () => fetchChat(eventId), retry: false, refetchInterval: poll ? 5000 : false });
   const me = useMyNick();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);

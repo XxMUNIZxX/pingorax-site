@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { linkClient } from "@/lib/event-link";
 import { resolveWeaponIcons } from "@/lib/weapon-icons";
 import { catalogIconUrl } from "@/lib/weapon-catalog";
 import { fetchBuildsByIds, type Build } from "@/lib/builds";
@@ -79,7 +80,7 @@ export async function fetchPrivacySupport(): Promise<boolean> {
 
 /** O conteúdo é privado? Falso se a coluna ainda não existe. */
 export async function fetchIsPrivate(id: string): Promise<boolean> {
-  const { data, error } = await supabase.from("events").select("is_private").eq("id", id).maybeSingle();
+  const { data, error } = await linkClient(id).from("events").select("is_private").eq("id", id).maybeSingle();
   return !error && !!data?.is_private;
 }
 
@@ -109,7 +110,8 @@ export async function fetchEventsByIds(ids: string[]): Promise<GameEvent[]> {
 }
 
 export async function fetchEvent(id: string): Promise<GameEvent | null> {
-  const { data, error } = await withRoleFallback((select) => supabase.from("events").select(select).eq("id", id).maybeSingle());
+  // Com o cabeçalho do link, abre o conteúdo mesmo que seja privado.
+  const { data, error } = await withRoleFallback((select) => linkClient(id).from("events").select(select).eq("id", id).maybeSingle());
   if (error) throw error;
   if (!data) return null;
   return (await withIcons([data as unknown as GameEvent]))[0] ?? null;

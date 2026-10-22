@@ -113,7 +113,7 @@ export const refreshDiscordMessage = createServerFn({ method: "POST" })
       const { discordConfig, loadEvent, editEventMessage, anonClient, notifyPromotions } = await import("@/lib/discord.server");
       const cfg = discordConfig();
       if (!cfg.botToken) return { ok: false };
-      const { data: post } = await anonClient().from("discord_posts").select("channel_id,message_id").eq("event_id", data.eventId).maybeSingle();
+      const { data: post } = await anonClient(data.eventId).from("discord_posts").select("channel_id,message_id").eq("event_id", data.eventId).maybeSingle();
       if (!post) return { ok: true };
       const event = await loadEvent(data.eventId);
       if (!event) return { ok: false };
