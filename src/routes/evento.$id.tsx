@@ -20,6 +20,7 @@ import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { EventChat } from "@/components/event-chat";
 import { VoiceRoom } from "@/components/voice-room";
+import { LootPanel } from "@/components/loot-panel";
 import { MyNickProvider, PingGate, useMyNick } from "@/components/require-login";
 
 export const Route = createFileRoute("/evento/$id")({
@@ -101,6 +102,11 @@ function EventContent({ id }: { id: string }) {
   const manager = useQuery({
     queryKey: ["can-manage", id],
     queryFn: async () => { const { data } = await supabase.rpc("can_manage_event", { _event_id: id }); return data === true; },
+    retry: false, staleTime: 60_000,
+  });
+  const editor = useQuery({
+    queryKey: ["can-edit", id],
+    queryFn: async () => { const { data } = await supabase.rpc("can_edit_event", { _event_id: id }); return data === true; },
     retry: false, staleTime: 60_000,
   });
   const waitlistQuery = useQuery({ queryKey: ["waitlist", id], queryFn: () => fetchWaitlist(id), retry: false });
@@ -275,6 +281,7 @@ function EventContent({ id }: { id: string }) {
       )}
       <VoiceRoom eventId={id} />
       <EventChat eventId={id} canModerate={manager.data === true} />
+      <LootPanel eventId={id} canEdit={editor.data === true} participants={ev.signups.map((s) => ({ nick: s.nick, role: weapons.find((w) => w.id === s.weapon_id)?.role ?? null }))} />
     </main>
   );
 }
