@@ -7,7 +7,6 @@ import { fetchBattleList, fetchRecentKills } from "@/lib/albion.functions";
 import { fameShort, shortNumber, timeAgo } from "@/lib/albion-types";
 import { fetchEvents, formatDate } from "@/lib/events";
 import { DEFAULT_SHARE_IMAGE, SHARE_ORIGIN } from "@/lib/share-image";
-import { useSession } from "@/components/panel-access";
 
 const TITLE = "PingoraX — Conteúdos, builds, lutas e kills de Albion Online";
 const DESCRIPTION = "Inscreva-se nos conteúdos com a sua arma, monte builds, analise lutas e kills do Albion e use tudo no seu Discord.";
@@ -89,9 +88,7 @@ function RecentKills() {
 
 /** Próximos conteúdos com vaga. */
 function NextContents() {
-  const session = useSession();
-  const events = useQuery({ queryKey: ["events"], queryFn: fetchEvents, enabled: !!session });
-  if (!session) return <p className="mt-5 text-sm text-muted-foreground">Entre com Discord ou Google para ver os próximos conteúdos e pingar.</p>;
+  const events = useQuery({ queryKey: ["events"], queryFn: fetchEvents });
   const next = (events.data ?? []).filter((e) => new Date(e.starts_at).getTime() > Date.now() - 3 * 3600_000).slice(0, 3);
   if (next.length === 0) return null;
   return (

@@ -19,7 +19,7 @@ import { fetchWaitlist } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { EventChat } from "@/components/event-chat";
-import { RequireLogin, useMyNick } from "@/components/require-login";
+import { MyNickProvider, PingGate, useMyNick } from "@/components/require-login";
 
 export const Route = createFileRoute("/evento/$id")({
   loader: async ({ params }) => {
@@ -90,7 +90,7 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 
 function EventPage() {
   const { id } = Route.useParams();
-  return <RequireLogin redirectPath={`/evento/${id}`}><EventContent id={id} /></RequireLogin>;
+  return <MyNickProvider><EventContent id={id} /></MyNickProvider>;
 }
 
 function EventContent({ id }: { id: string }) {
@@ -108,6 +108,7 @@ function EventContent({ id }: { id: string }) {
   const [typedNick, setTypedNick] = useState("");
   // Logado: o nick vem do perfil. Só pede para digitar se o perfil ainda não existe no Supabase.
   const nick = me.legacy ? typedNick : me.nick ?? "";
+  const canPing = me.status === "ready" || me.status === "legacy";
   const [weaponId, setWeaponId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const refreshDiscord = useServerFn(refreshDiscordMessage);
@@ -140,6 +141,7 @@ function EventContent({ id }: { id: string }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!weaponId) { toast.error("Escolha uma arma"); return; }
+    if (!canPing) { toast.error("Entre no site para pingar."); return; }
     if (nick.trim().length < 2) { toast.error("Digite seu nick"); return; }
     setSending(true);
     const row = { event_id: id, weapon_id: weaponId, nick: nick.trim() };
@@ -199,8 +201,9 @@ function EventContent({ id }: { id: string }) {
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-border py-4">
           <span className="text-sm font-bold text-foreground">Como pingar</span>
           <Step n={1} label="Escolha sua arma" done={!!weaponId} />
-          {me.legacy && <Step n={2} label="Digite seu nick" done={nick.trim().length >= 2} />}
-          <Step n={me.legacy ? 3 : 2} label="Clique em Pingar" done={false} />
+          {!canPing && <Step n={2} label="Entre com Discord ou Google" done={false} />}
+          {me.legacy && <Step n={3} label="Digite seu nick" done={nick.trim().length >= 2} />}
+          <Step n={me.legacy ? 4 : canPing ? 2 : 3} label="Clique em Pingar" done={false} />
         </div>
       )}
 
@@ -249,13 +252,16 @@ function EventContent({ id }: { id: string }) {
             ))}
           </section>
         )}
+        {canPing && (
         <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-end">
           {me.legacy
             ? <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="player-nick">Seu nick no Albion</Label><Input id="player-nick" placeholder="Seu nick no jogo" value={typedNick} onChange={(e) => setTypedNick(e.target.value)} maxLength={32} /></div>
             : <p className="min-w-0 flex-1 text-sm text-muted-foreground">Você pinga como <b className="text-foreground">{me.nick}</b> · <Link to="/perfil" className="underline hover:text-primary">mudar nick</Link></p>}
           <Button variant="gold" type="submit" disabled={sending || (full && !canQueue)} className="sm:min-w-40">{sending ? "Confirmando..." : joiningQueue ? "Entrar na fila" : full && !canQueue ? "Lotado" : "Pingar"}</Button>
         </div>
+        )}
       </form>
+      {!canPing && <div className="mt-8 border-t border-border pt-6"><PingGate redirectPath={`/evento/${id}`} /></div>}
       {waitlist && waitlist.length > 0 && (
         <section className="mt-8 border-t border-border pt-6" aria-label="Lista de espera">
           <h2 className="text-xl font-bold">Lista de espera <span className="text-base font-normal text-muted-foreground">({waitlist.length})</span></h2>
