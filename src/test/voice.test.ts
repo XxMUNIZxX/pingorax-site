@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { canJoinVoice, roomName } from "@/lib/voice";
-import { signLiveKitToken } from "@/lib/voice.server";
+import { looksSwapped, signLiveKitToken } from "@/lib/voice.server";
 
 describe("quem entra na sala de voz", () => {
   const base = { nick: "Ana", signups: ["Bia", "ana"], waitlist: ["Caio"], caller: "Dudu", manager: false };
@@ -30,8 +30,15 @@ describe("chave de acesso do LiveKit", () => {
     const [h, p, sig] = token.split(".") as [string, string, string];
     expect(JSON.parse(Buffer.from(h, "base64url").toString())).toEqual({ alg: "HS256", typ: "JWT" });
     const payload = JSON.parse(Buffer.from(p, "base64url").toString());
-    expect(payload).toMatchObject({ iss: "key", sub: "u1", name: "Ana", nbf: now / 1000, exp: now / 1000 + 4 * 3600 });
+    expect(payload).toMatchObject({ iss: "key", sub: "u1", name: "Ana", nbf: now / 1000 - 30, exp: now / 1000 + 4 * 3600 });
     expect(payload.video).toMatchObject({ room: "pingorax-e1", roomJoin: true, canPublish: true, canSubscribe: true });
     expect(sig).toBe(createHmac("sha256", "segredo").update(`${h}.${p}`).digest("base64url"));
+  });
+});
+
+describe("chaves trocadas", () => {
+  it("avisa quando a API key e o secret estão invertidos", () => {
+    expect(looksSwapped("APIabc123", "x".repeat(40))).toBe(false);
+    expect(looksSwapped("x".repeat(40), "APIabc123")).toBe(true);
   });
 });

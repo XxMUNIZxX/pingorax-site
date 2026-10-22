@@ -19,6 +19,8 @@ export const getVoiceToken = createServerFn({ method: "POST" })
     const { canJoinVoice, roomName } = await import("@/lib/voice");
     const cfg = livekitConfig();
     if (!cfg) return { ok: false, error: "A sala de voz ainda não foi configurada no servidor." };
+    const { looksSwapped } = await import("@/lib/voice.server");
+    if (looksSwapped(cfg.apiKey, cfg.apiSecret)) return { ok: false, error: "LIVEKIT_API_KEY e LIVEKIT_API_SECRET parecem trocados: a key começa com \"API\"." };
 
     const { supabase, userId } = context;
     const [profile, event, signups, waitlist, manager] = await Promise.all([
