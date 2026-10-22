@@ -18,16 +18,16 @@ const HOME_SHARE_IMAGE = DEFAULT_SHARE_IMAGE;
 export const Route = createFileRoute("/conteudos")({
   head: () => ({
     meta: [
-      { title: "PingoraX — Conteúdos Albion Online" },
+      { title: "Conteúdos — PingoraX" },
       { name: "description", content: "Veja os próximos conteúdos de Albion e pingue com sua arma." },
       { property: "og:type", content: "website" },
-      { property: "og:title", content: "PingoraX — Conteúdos Albion Online" },
+      { property: "og:title", content: "Conteúdos — PingoraX" },
       { property: "og:description", content: "Veja os próximos conteúdos de Albion e pingue com sua arma." },
       { property: "og:image", content: HOME_SHARE_IMAGE },
       { property: "og:image:alt", content: "Logo PingoraX" },
       { property: "og:url", content: `${SHARE_ORIGIN}/conteudos` },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "PingoraX — Conteúdos Albion Online" },
+      { name: "twitter:title", content: "Conteúdos — PingoraX" },
       { name: "twitter:description", content: "Veja os próximos conteúdos de Albion e pingue com sua arma." },
       { name: "twitter:image", content: HOME_SHARE_IMAGE },
     ],
