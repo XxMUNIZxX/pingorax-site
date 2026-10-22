@@ -19,6 +19,7 @@ import { fetchWaitlist } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { EventChat } from "@/components/event-chat";
+import { VoiceRoom } from "@/components/voice-room";
 import { MyNickProvider, PingGate, useMyNick } from "@/components/require-login";
 
 export const Route = createFileRoute("/evento/$id")({
@@ -272,6 +273,7 @@ function EventContent({ id }: { id: string }) {
           </ol>
         </section>
       )}
+      <VoiceRoom eventId={id} />
       <EventChat eventId={id} canModerate={manager.data === true} />
     </main>
   );
