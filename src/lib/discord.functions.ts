@@ -179,3 +179,53 @@ export const postAnalysisToDiscord = createServerFn({ method: "POST" })
       return { ok: false, error: "Não foi possível enviar para esse canal. Confira se o bot está no servidor e pode ver e enviar mensagens nele." };
     }
   });
+
+/**
+ * Manda o resumo da divisão de loot (e o top de dps) como resposta ao card do conteúdo no Discord. Só quem edita o conteúdo.
+ * O texto é montado aqui no servidor a partir do que está salvo no banco, não vem pronto do navegador.
+ */
+export const postLootToDiscord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((value: unknown) => z.object({ sessionId: z.string().uuid() }).parse(value))
+  .handler(async ({ data, context }): Promise<Result> => {
+    const { data: row, error } = await context.supabase.from("loot_sessions")
+      .select("event_id,title,silver,split_config,people,loot_items(quantity,unit_value),dps_entries(nick,damage,healing)")
+      .eq("id", data.sessionId).maybeSingle();
+    if (error || !row) return { ok: false, error: "Sessão de loot não encontrada." };
+    const { data: allowed } = await context.supabase.rpc("can_edit_event", { _event_id: row.event_id });
+    if (!allowed) return { ok: false, error: "Você não pode enviar isto." };
+    const { discordConfig, loadEvent, sendRawMessage } = await import("@/lib/discord.server");
+    const cfg = discordConfig();
+    if (!cfg.botToken) return { ok: false, error: "O Discord ainda não foi configurado no servidor (DISCORD_BOT_TOKEN)." };
+    const { data: post } = await context.supabase.from("discord_posts").select("channel_id,message_id").eq("event_id", row.event_id).maybeSingle();
+    if (!post) return { ok: false, error: "Este conteúdo ainda não foi postado no Discord. Poste o card primeiro." };
+    try {
+      const event = await loadEvent(row.event_id);
+      if (!event) return { ok: false, error: "Conteúdo não encontrado." };
+      const { computeSplit, splitSummaryText } = await import("@/lib/loot-split");
+      const { normalizeConfig, normalizePeople } = await import("@/lib/loot");
+      const overrides = new Map(normalizePeople(row.people).map((p) => [p.nick.trim().toLowerCase(), p]));
+      const roleOf = new Map(event.event_weapons.map((w) => [w.id, w.role ?? null]));
+      const names = new Set<string>();
+      const people = [
+        ...event.signups.map((s) => ({ nick: s.nick, role: roleOf.get(s.weapon_id ?? "") ?? null })),
+        ...[...overrides.values()].filter((p) => p.extra).map((p) => ({ nick: p.nick, role: null as string | null })),
+      ].filter((p) => { const k = p.nick.trim().toLowerCase(); if (names.has(k)) return false; names.add(k); return true; })
+        .map((p) => { const o = overrides.get(p.nick.trim().toLowerCase()); return { nick: p.nick, role: p.role, repair: o?.repair, manualPercent: o?.manualPercent ?? null, excluded: o?.excluded }; });
+      const items = (row.loot_items ?? []) as { quantity: number; unit_value: number }[];
+      const total = Number(row.silver) + items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_value), 0);
+      const result = computeSplit(total, people, normalizeConfig(row.split_config));
+      let text = splitSummaryText(row.title, result);
+      const dps = ((row.dps_entries ?? []) as { nick: string; damage: number; healing: number }[]).sort((a, b) => Number(b.damage) - Number(a.damage)).slice(0, 5);
+      if (dps.length) text += `\n\n⚔️ Top dps\n${dps.map((d, i) => `${i + 1}. ${d.nick}: ${Number(d.damage).toLocaleString("pt-BR")}${Number(d.healing) > 0 ? ` (cura ${Number(d.healing).toLocaleString("pt-BR")})` : ""}`).join("\n")}`;
+      await sendRawMessage(post.channel_id, cfg, {
+        content: text.slice(0, 1900),
+        message_reference: { message_id: post.message_id, fail_if_not_exists: false },
+        allowed_mentions: { parse: [] as string[] },
+      });
+      return { ok: true };
+    } catch (err) {
+      console.error("[discord] loot", err);
+      return { ok: false, error: "Não foi possível enviar para o Discord. Confira se o bot ainda enxerga o canal." };
+    }
+  });

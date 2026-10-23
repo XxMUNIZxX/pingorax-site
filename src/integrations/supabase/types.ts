@@ -446,12 +446,18 @@ export type Database = {
         ]
       }
       loot_items: {
-        Row: { created_at: string; id: string; looted_by: string | null; name: string; quantity: number; session_id: string; unit_value: number }
-        Insert: { created_at?: string; id?: string; looted_by?: string | null; name: string; quantity?: number; session_id: string; unit_value?: number }
-        Update: { created_at?: string; id?: string; looted_by?: string | null; name?: string; quantity?: number; session_id?: string; unit_value?: number }
+        Row: { created_at: string; external_id: string | null; id: string; looted_by: string | null; name: string; quantity: number; session_id: string; unit_value: number }
+        Insert: { created_at?: string; external_id?: string | null; id?: string; looted_by?: string | null; name: string; quantity?: number; session_id: string; unit_value?: number }
+        Update: { created_at?: string; external_id?: string | null; id?: string; looted_by?: string | null; name?: string; quantity?: number; session_id?: string; unit_value?: number }
         Relationships: [
           { foreignKeyName: "loot_items_session_id_fkey"; columns: ["session_id"]; isOneToOne: false; referencedRelation: "loot_sessions"; referencedColumns: ["id"] },
         ]
+      }
+      logger_tokens: {
+        Row: { created_at: string; id: string; label: string; last_used_at: string | null; token_hash: string; user_id: string }
+        Insert: { created_at?: string; id?: string; label?: string; last_used_at?: string | null; token_hash: string; user_id?: string }
+        Update: { created_at?: string; id?: string; label?: string; last_used_at?: string | null; token_hash?: string; user_id?: string }
+        Relationships: []
       }
       dps_entries: {
         Row: { damage: number; healing: number; nick: string; session_id: string }
@@ -640,6 +646,12 @@ export type Database = {
       can_create_content: { Args: never; Returns: boolean }
       can_edit_event: { Args: { _event_id: string }; Returns: boolean }
       can_manage_event: { Args: { _event_id: string }; Returns: boolean }
+      logger_create_token: { Args: { _label?: string }; Returns: string }
+      logger_my_events: { Args: { _token: string }; Returns: { id: string; starts_at: string; title: string }[] }
+      logger_ingest: {
+        Args: { _dps?: Json; _event: string; _items?: Json; _session?: string; _silver?: number; _token: string }
+        Returns: Json
+      }
       send_event_message: {
         Args: { _body: string; _event_id: string }
         Returns: { body: string; created_at: string; event_id: string; id: string; nick: string }

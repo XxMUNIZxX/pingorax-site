@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Coins, Copy, Plus, Trash2 } from "lucide-react";
+import { Coins, Copy, Plus, Send, Trash2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { postLootToDiscord } from "@/lib/discord.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,8 @@ function SessionView({ session, canEdit, participants, onChanged }: { session: L
   const [title, setTitle] = useState(session.title);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const sendLoot = useServerFn(postLootToDiscord);
 
   // Quando outra pessoa muda a sessão e eu não estou editando, acompanha.
   useEffect(() => {
@@ -120,6 +124,7 @@ function SessionView({ session, canEdit, participants, onChanged }: { session: L
         <span className="text-sm text-muted-foreground">{session.status === "closed" ? "Sessão fechada" : "Sessão aberta"}</span>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={async () => { const ok = await copyText(splitSummaryText(title, result)); if (ok) toast.success("Resumo copiado! Cole no Discord."); else toast.error("Não consegui copiar."); }}><Copy /> Copiar resumo</Button>
+          {canEdit && <Button size="sm" variant="outline" disabled={dirty || sending} title={dirty ? "Salve a divisão antes de enviar" : undefined} onClick={async () => { setSending(true); try { const r = await sendLoot({ data: { sessionId: session.id } }); if (r.ok) toast.success("Resumo enviado ao Discord."); else toast.error(r.error); } catch { toast.error("Não foi possível enviar."); } finally { setSending(false); } }}><Send /> {sending ? "Enviando..." : "Enviar ao Discord"}</Button>}
           {canEdit && <Button size="sm" variant="gold" disabled={!dirty || saving} onClick={() => void saveAll()}>{saving ? "Salvando..." : dirty ? "Salvar divisão" : "Salvo"}</Button>}
           {canEdit && <Button size="sm" variant="outline" onClick={() => void run(() => saveLootSession(session.id, { status: session.status === "open" ? "closed" : "open" }))}>{session.status === "open" ? "Fechar sessão" : "Reabrir"}</Button>}
           {canEdit && <Button size="sm" variant="ghost" aria-label="Excluir sessão" onClick={() => { if (window.confirm(`Excluir a sessão "${session.title}" com todo o loot e dps?`)) void run(() => deleteLootSession(session.id)); }}><Trash2 /></Button>}

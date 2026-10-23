@@ -26,6 +26,7 @@ import { Route as ApiPublicBuildImageRouteImport } from './routes/api/public/bui
 import { Route as ApiPublicBattleImageRouteImport } from './routes/api/public/battle-image'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
 import { Route as ApiPublicDiscordCleanupRouteImport } from './routes/api/public/discord-cleanup'
+import { Route as ApiPublicLoggerRouteImport } from './routes/api/public/logger'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -87,6 +88,11 @@ const ApiPublicDiscordCleanupRoute = ApiPublicDiscordCleanupRouteImport.update({
   path: '/api/public/discord-cleanup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLoggerRoute = ApiPublicLoggerRouteImport.update({
+  id: '/api/public/logger',
+  path: '/api/public/logger',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicDiscordInteractionsRoute = ApiPublicDiscordInteractionsRouteImport.update({
   id: '/api/public/discord-interactions',
   path: '/api/public/discord-interactions',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/perfil': typeof PerfilRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/discord-cleanup': typeof ApiPublicDiscordCleanupRoute
+  '/api/public/logger': typeof ApiPublicLoggerRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
   '/api/public/kill-image': typeof ApiPublicKillImageRoute
   '/api/public/build-image': typeof ApiPublicBuildImageRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/perfil': typeof PerfilRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/discord-cleanup': typeof ApiPublicDiscordCleanupRoute
+  '/api/public/logger': typeof ApiPublicLoggerRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
   '/api/public/kill-image': typeof ApiPublicKillImageRoute
   '/api/public/build-image': typeof ApiPublicBuildImageRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/perfil': typeof PerfilRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/discord-cleanup': typeof ApiPublicDiscordCleanupRoute
+  '/api/public/logger': typeof ApiPublicLoggerRoute
   '/api/public/share-image': typeof ApiPublicShareImageRoute
   '/api/public/kill-image': typeof ApiPublicKillImageRoute
   '/api/public/build-image': typeof ApiPublicBuildImageRoute
@@ -174,9 +183,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/mapa' | '/evento/$id' | '/g/$slug' | '/perfil' | '/api/public/discord-interactions' | '/api/public/discord-cleanup' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
+    '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/mapa' | '/evento/$id' | '/g/$slug' | '/perfil' | '/api/public/discord-interactions' | '/api/public/discord-cleanup' | '/api/public/logger' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/mapa' | '/evento/$id' | '/g/$slug' | '/perfil' | '/api/public/discord-interactions' | '/api/public/discord-cleanup' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
+  to: '/' | '/admin' | '/builds' | '/criar' | '/lutas' | '/kills' | '/conteudos' | '/mapa' | '/evento/$id' | '/g/$slug' | '/perfil' | '/api/public/discord-interactions' | '/api/public/discord-cleanup' | '/api/public/logger' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
   id:
     | '__root__'
     | '/'
@@ -188,7 +197,7 @@ export interface FileRouteTypes {
     | '/evento/$id'
     | '/g/$slug'
     | '/perfil'
-    | '/api/public/discord-interactions' | '/api/public/discord-cleanup' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
+    | '/api/public/discord-interactions' | '/api/public/discord-cleanup' | '/api/public/logger' | '/api/public/share-image' | '/api/public/kill-image' | '/api/public/build-image' | '/api/public/battle-image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -205,6 +214,7 @@ export interface RootRouteChildren {
   PerfilRoute: typeof PerfilRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicDiscordCleanupRoute: typeof ApiPublicDiscordCleanupRoute
+  ApiPublicLoggerRoute: typeof ApiPublicLoggerRoute
   ApiPublicShareImageRoute: typeof ApiPublicShareImageRoute
   ApiPublicKillImageRoute: typeof ApiPublicKillImageRoute
   ApiPublicBuildImageRoute: typeof ApiPublicBuildImageRoute
@@ -297,6 +307,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDiscordCleanupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/logger': {
+      id: '/api/public/logger'
+      path: '/api/public/logger'
+      fullPath: '/api/public/logger'
+      preLoaderRoute: typeof ApiPublicLoggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/discord-interactions': {
       id: '/api/public/discord-interactions'
       path: '/api/public/discord-interactions'
@@ -349,6 +366,7 @@ const rootRouteChildren: RootRouteChildren = {
   PerfilRoute: PerfilRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicDiscordCleanupRoute: ApiPublicDiscordCleanupRoute,
+  ApiPublicLoggerRoute: ApiPublicLoggerRoute,
   ApiPublicShareImageRoute: ApiPublicShareImageRoute,
   ApiPublicKillImageRoute: ApiPublicKillImageRoute,
   ApiPublicBuildImageRoute: ApiPublicBuildImageRoute,

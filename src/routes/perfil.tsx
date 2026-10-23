@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { fetchProfile, listGuildOptions, profileDefaults, saveProfile, validateProfile, type ProfileForm } from "@/lib/profiles";
 import { fetchMyGuilds } from "@/lib/guilds";
 import { MyPingsPanel } from "@/components/my-pings";
+import { LoggerTokens } from "@/components/logger-tokens";
 
 export const Route = createFileRoute("/perfil")({
   ssr: false,
@@ -84,6 +85,7 @@ function ProfileEditor({ user }: { user: { id: string; email?: string | undefine
         </div>
       </div>
       <MyPingsPanel nick={profile.data.profile?.albion_nick?.trim() || null} />
+      <LoggerTokens userId={user.id} />
       {!profile.data.profile && <p className="mt-4 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">Bem-vindo! Preenchi seu nome com os dados do login. Confira e clique em Salvar.</p>}
 
       <fieldset disabled={saving} className="mt-6 space-y-5">
