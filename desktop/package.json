@@ -1,0 +1,48 @@
+{
+  "name": "pingorax-logger",
+  "productName": "PingoraX Logger",
+  "version": "0.1.0",
+  "description": "Loot logger e medidor de dps do PingoraX para callers de Albion Online",
+  "author": "PingoraX",
+  "private": true,
+  "main": "dist/electron/main.cjs",
+  "scripts": {
+    "build:renderer": "vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build": "npm run build:renderer && npm run build:electron",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "release": "npm run build && electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "@fontsource/barlow": "^5.1.0",
+    "cap": "^0.2.1",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.0.7",
+    "vitest": "^3.0.0"
+  },
+  "build": {
+    "appId": "online.pingorax.logger",
+    "productName": "PingoraX Logger",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["dist/**/*", "package.json"],
+    "asarUnpack": ["**/node_modules/cap/**"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false },
+    "publish": [{ "provider": "github", "owner": "XxMUNIZxX", "repo": "pingorax-site", "releaseType": "release" }]
+  }
+}

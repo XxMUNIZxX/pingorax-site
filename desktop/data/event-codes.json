@@ -1,0 +1,19 @@
+{
+  "_nota": "C\u00f3digos de evento do Albion (par\u00e2metro 252). Mudam quando o jogo atualiza; confira com a vers\u00e3o do jogo.",
+  "gameBuild": "refer\u00eancia: AlbionOnline-StatisticsAnalysis",
+  "events": {
+    "Leave": 1,
+    "JoinFinished": 2,
+    "NewCharacter": 29,
+    "HealthUpdate": 6,
+    "HealthUpdates": 7,
+    "OtherGrabbedLoot": 278,
+    "TakeSilver": 62,
+    "Died": 164,
+    "KilledPlayer": 163,
+    "PartyJoined": 230,
+    "PartyDisbanded": 231,
+    "PartyPlayerJoined": 232,
+    "PartyPlayerLeft": 234
+  }
+}
