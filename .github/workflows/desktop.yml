@@ -28,7 +28,16 @@ jobs:
         shell: bash
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
       - name: Instalar
-        run: npm install --no-audit --no-fund
+        shell: bash
+        run: |
+          set +e
+          npm install --no-audit --no-fund 2>&1 | tee ../install.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            msg=$(grep -iE "error|fail|gyp" ../install.log | tail -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=npm install falhou::${msg}"
+            exit $code
+          fi
       - name: Testes
         run: npm test
       - name: Tipos (aviso, não bloqueia)
@@ -36,7 +45,16 @@ jobs:
         continue-on-error: true
       - name: Montar instalador
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: npm run dist
+        shell: bash
+        run: |
+          set +e
+          npm run dist 2>&1 | tee ../dist.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            msg=$(grep -iE "error|fail" ../dist.log | tail -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=montagem falhou::${msg}"
+            exit $code
+          fi
       - name: Montar e publicar
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm run release
