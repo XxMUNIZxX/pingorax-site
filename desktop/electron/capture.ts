@@ -2,7 +2,7 @@
 import { createRequire } from "node:module";
 
 type CapModule = {
-  Cap: new () => { open(device: string, filter: string, bufSize: number, buffer: Buffer): string; on(ev: "packet", cb: (nbytes: number) => void): void; close(): void };
+  Cap: new () => { open(device: string, filter: string, bufSize: number, buffer: Buffer): string; setMinBytes?(n: number): void; on(ev: "packet", cb: (nbytes: number) => void): void; close(): void };
   decoders: { PROTOCOL: { ETHERNET: { IPV4: number }; IP: { UDP: number } }; Ethernet(b: Buffer): { info: { type: number }; offset: number }; IPV4(b: Buffer, o: number): { info: { protocol: number }; offset: number }; UDP(b: Buffer, o: number): { info: { length: number }; offset: number } };
 };
 type Device = { name: string; addresses: { addr?: string }[] };
@@ -29,6 +29,8 @@ export class Capture {
         const cap = new mod.Cap();
         const linkType = cap.open(dev.name, "udp and (port 5055 or port 5056 or port 5058)", 10 * 1024 * 1024, buffer);
         if (linkType !== "ETHERNET") { cap.close(); continue; }
+        // Windows: sem isto o Npcap só entrega pacotes quando o buffer enche (parece que "não lê nada").
+        cap.setMinBytes?.(0);
         cap.on("packet", (nbytes: number) => {
           try {
             const eth = decoders.Ethernet(buffer);
