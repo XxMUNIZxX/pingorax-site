@@ -42,12 +42,29 @@ let dirty = false; let sending = false;
 
 const tracker = new Tracker(DEFAULT_CODES, () => { dirty = true; });
 const parser = new PhotonParser();
+// Exemplos reais de cada tipo de evento/resposta (até 2 de cada), para eu conferir o formato no arquivo de diagnóstico.
+const examples = new Map<string, unknown[]>();
+function plain(v: unknown, depth = 0): unknown {
+  if (v instanceof Uint8Array) return v.length <= 24 ? `bytes:${Buffer.from(v).toString("hex")}` : `bytes[${v.length}]`;
+  if (v instanceof Map) return depth > 3 ? "{...}" : Object.fromEntries([...v].map(([k, x]) => [String(k), plain(x, depth + 1)]));
+  if (Array.isArray(v)) return v.length > 8 ? [...v.slice(0, 8).map((x) => plain(x, depth + 1)), `+${v.length - 8}`] : v.map((x) => plain(x, depth + 1));
+  if (typeof v === "string") return v.slice(0, 60);
+  if (v && typeof v === "object") return "{...}";
+  return v;
+}
+function remember(m: { kind: string; params: Map<number, unknown> }, code: number) {
+  const key = `${m.kind}:${code}`;
+  const list = examples.get(key) ?? [];
+  if (list.length >= 2 || (!list.length && examples.size >= 120)) return;
+  list.push(plain(m.params)); examples.set(key, list);
+}
 const capture = new Capture((payload, port) => {
   packets++;
   const pc = ports.get(port) ?? { packets: 0, messages: 0 }; pc.packets++; ports.set(port, pc);
   for (const m of parser.feed(payload)) {
     messages++; pc.messages++;
     if (m.kind === "event") { const c = gameCode(m); codeCounts.set(c, (codeCounts.get(c) ?? 0) + 1); }
+    if (m.kind !== "request") remember(m, gameCode(m));
     tracker.handle(m);
   }
 });
@@ -115,7 +132,7 @@ else {
     ipcMain.handle("update:install", () => { autoUpdater.quitAndInstall(); });
     ipcMain.handle("log:save", async () => {
       const file = path.join(app.getPath("desktop"), "pingorax-logger-diagnostico.json");
-      const data = { when: new Date().toISOString(), version: app.getVersion(), diag: state().diag, amostras: parser.stats.samples, snapshot: tracker.snapshot(false) };
+      const data = { when: new Date().toISOString(), version: app.getVersion(), diag: state().diag, amostras: parser.stats.samples, exemplos: Object.fromEntries(examples), snapshot: tracker.snapshot(false) };
       try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); } catch (e) { void dialog.showErrorBox("Não consegui salvar", String(e)); return ""; }
       return file;
     });

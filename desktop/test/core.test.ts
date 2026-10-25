@@ -147,6 +147,14 @@ describe("contador de dano e loot", () => {
     expect(s.me).toBe("Caller");
     expect(s.dps).toEqual([{ nick: "Caller", damage: 150, healing: 40 }, { nick: "Aluno", damage: 30, healing: 0 }]);
   });
+  it("reconhece você pela resposta de entrada no mapa mesmo se o código mudou, e loot sem quantidade conta 1", () => {
+    const t = new Tracker();
+    const keys: [number, Uint8Array][] = [[0, val({ t: "i", v: 77 })], [1, cat(Uint8Array.of(120), be(16, 4), new Uint8Array(16))], [2, val({ t: "s", v: "MeuNick" })]];
+    for (let k = 3; k < 15; k++) keys.push([k, val({ t: "b", v: 1 })]);
+    keys.push([253, val({ t: "k", v: 999 })]);
+    feed(t, message(3, 1, keys, Uint8Array.of(...be(0, 2), 42)));
+    expect(t.snapshot().me).toBe("MeuNick");
+  });
   it("só conta quem está no grupo quando há grupo", () => {
     const t = new Tracker();
     feed(t, newChar(1, "Dentro"), newChar(2, "Fora"), hit(9, -10, 1), hit(9, -20, 2),

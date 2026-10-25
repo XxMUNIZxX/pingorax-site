@@ -38,7 +38,10 @@ export class Tracker {
   handle(m: PhotonMessage): void {
     const c = this.codes; const code = gameCode(m); const p = m.params;
     if (m.kind === "response") {
-      if (code === c.joinOperation) {
+      // A resposta de "entrou no mapa" traz o seu objeto (0), um GUID de 16 bytes (1) e o seu nome (2). Reconhece pelo código ou pelo formato.
+      const guid = p.get(1);
+      const looksLikeJoin = guid instanceof Uint8Array && guid.length === 16 && typeof p.get(2) === "string" && num(p.get(0)) !== null && p.size >= 12;
+      if (code === c.joinOperation || looksLikeJoin) {
         const name = str(p.get(2)); const id = num(p.get(0));
         if (name) { this.me = name; this.meId = id; if (id !== null) this.names.set(id, name); this.onChange?.(); }
       }
@@ -71,7 +74,7 @@ export class Tracker {
   }
 
   private grabbed(p: Map<number, unknown>) {
-    const looter = str(p.get(2)); const quantity = num(p.get(5)); if (!looter || quantity === null || quantity <= 0) return;
+    const looter = str(p.get(2)); const quantity = num(p.get(5)) ?? 1; if (!looter || quantity <= 0) return;
     if (p.get(3) === true) { this.silverRaw += quantity; this.onChange?.(); return; }
     const index = num(p.get(4)); if (index === null) return;
     const item = itemName(index); const from = str(p.get(1)) ?? "?";

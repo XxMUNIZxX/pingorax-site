@@ -45,7 +45,7 @@ export function App() {
         <div><h1>PingoraX Logger</h1><div className="sub">Loot e dps do conteúdo · v{state.version}</div></div>
         <div className="spacer" />
         <span className={`pill ${capOk ? "ok" : "bad"}`}><span className="dot" />{capOk ? "Lendo o jogo" : "Captura parada"}</span>
-        {snap.me && <span className="pill">Você: {snap.me}</span>}
+        {snap.me ? <span className="pill">Você: {snap.me}</span> : capOk && <span className="pill" title="O jogo só avisa quem é você quando você entra num mapa novo.">Troque de mapa para eu te reconhecer</span>}
       </header>
 
       {state.update && <div className="banner"><span>{state.update}</span>{state.update.includes("Reinicie") && <button className="gold" onClick={() => void api.installUpdate()}>Reiniciar e atualizar</button>}</div>}
