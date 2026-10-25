@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Coins, Copy, Plus, Send, Trash2 } from "lucide-react";
+import { Coins, Copy, Plus, Send, Trash2, Upload } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { postLootToDiscord } from "@/lib/discord.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMyNick } from "@/components/require-login";
+import { parseTrikyLoot } from "@/lib/triky";
 import { copyText } from "@/lib/share-text";
 import { WEAPON_ROLES, roleInfo } from "@/lib/weapon-roles";
 import { computeSplit, parseDpsPaste, parseLootPaste, parseSilver, splitSummaryText, type SplitConfig, type SplitPerson } from "@/lib/loot-split";
 import {
-  addLootItems, createLootSession, deleteDps, deleteLootItem, deleteLootSession, fetchLootSessions, lootTotal, saveDps, saveLootSession,
+  addLootItems, createLootSession, importLootItems, deleteDps, deleteLootItem, deleteLootSession, fetchLootSessions, lootTotal, saveDps, saveLootSession,
   type LootSession, type PersonOverride,
 } from "@/lib/loot";
 
@@ -220,6 +221,14 @@ function ItemsBox({ session, canEdit, silverText, onSilver, total, run }: { sess
     void run(() => addLootItems(session.id, items)).then(() => { setPaste(""); toast.success(`${items.length} itens adicionados${invalid.length ? `; ${invalid.length} linhas ignoradas` : ""}.`); });
   }
 
+  async function importFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 5_000_000) { toast.error("Arquivo grande demais."); return; }
+    const parsed = parseTrikyLoot(await file.text());
+    if (!parsed || parsed.items.length === 0) { toast.error("Não entendi o arquivo. Use a exportação de loot (.json ou .csv) do programa do Triky313."); return; }
+    void run(() => importLootItems(session.id, parsed.items)).then(() => toast.success(`${parsed.items.length} linhas de loot importadas (${parsed.entries} itens pegos${parsed.ignored ? `, ${parsed.ignored} ignorados` : ""}).`));
+  }
+
   return (
     <div className={box}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -229,7 +238,7 @@ function ItemsBox({ session, canEdit, silverText, onSilver, total, run }: { sess
       <ul className="mt-2 divide-y divide-border/60 text-sm">
         {session.items.map((item) => (
           <li key={item.id} className="flex items-center gap-3 py-1.5">
-            <span className="min-w-0 flex-1 truncate">{item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}</span>
+            <span className="min-w-0 flex-1 truncate">{item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}{item.looted_by ? <span className="text-xs text-muted-foreground"> · {item.looted_by}</span> : null}</span>
             <span className="shrink-0 text-muted-foreground">{fmt(item.unit_value)}{item.quantity > 1 ? ` cada` : ""}</span>
             <span className="w-24 shrink-0 text-right font-semibold">{fmt(item.quantity * item.unit_value)}</span>
             {canEdit && <button type="button" aria-label={`Remover ${item.name}`} className="shrink-0 text-muted-foreground hover:text-destructive" onClick={() => void run(() => deleteLootItem(item.id))}><Trash2 className="h-4 w-4" /></button>}
@@ -248,6 +257,16 @@ function ItemsBox({ session, canEdit, silverText, onSilver, total, run }: { sess
           </form>
         )}
       </div>
+      {canEdit && (
+        <div className="mt-3 rounded-md border border-dashed border-border p-3 text-sm">
+          <p className="font-semibold">Importar do programa de loot (Triky313)</p>
+          <p className="mt-1 text-xs text-muted-foreground">No programa: aba do loot logger → <b>Exportar loot</b> (JSON ou CSV). Escolha o arquivo aqui. Itens iguais da mesma pessoa são somados e o preço estimado do programa vira o valor de cada. Importar de novo troca o que veio do arquivo anterior, sem duplicar.</p>
+          <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 hover:border-primary">
+            <Upload className="h-4 w-4" /> Escolher arquivo
+            <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+        </div>
+      )}
       {canEdit && (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm text-primary">Colar vários itens de uma vez</summary>
@@ -293,7 +312,7 @@ function DpsBox({ session, canEdit, run }: { session: LootSession; canEdit: bool
       {canEdit && (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm text-primary">Colar o dps</summary>
-          <p className="mt-2 text-xs text-muted-foreground">Uma linha por jogador: <code>nick; dano; cura</code> (cura é opcional). Repetir o nick atualiza o valor.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Uma linha por jogador: <code>nick; dano; cura</code> (cura é opcional). Repetir o nick atualiza o valor. Também aceita o texto copiado do medidor do programa do Triky313 (botão de copiar o medidor), no formato <code>1. Nick: 12345(45.20%)|678.90 DPS</code>. No programa, deixe desligada a opção de medidor curto, senão o texto vem só com porcentagem.</p>
           <Textarea className="mt-2" rows={4} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"Ana; 1.2m; 30k\nBia; 800k"} />
           <Button className="mt-2" size="sm" variant="outline" onClick={importPaste}>Importar</Button>
         </details>

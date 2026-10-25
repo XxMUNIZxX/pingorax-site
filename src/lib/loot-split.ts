@@ -119,6 +119,13 @@ export function parseDpsPaste(text: string): { rows: { nick: string; damage: num
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) continue;
+    // Medidor copiado do programa do Triky313: "1. Nick: 12345(45.20%)|678.90 DPS"
+    const triky = /^\d+\.\s*(.+?):\s*([\d.,]+)\s*\(\s*[\d.,]+\s*%\s*\)\s*\|\s*[\d.,]+\s*DPS$/i.exec(line);
+    if (triky) {
+      const nick = triky[1]!.trim(); const damage = Math.round(Number(triky[2]!.replace(/[.,](?=.*[.,])/g, "").replace(",", ".")));
+      if (nick.length < 2 || nick.length > 32 || !Number.isFinite(damage)) invalid.push(line); else rows.push({ nick, damage, healing: 0 });
+      continue;
+    }
     const parts = line.split(/[;\t|]/).map((p) => p.trim()).filter(Boolean);
     const damage = parts[1] !== undefined ? parseSilver(parts[1]) : null;
     const healing = parts[2] !== undefined ? parseSilver(parts[2]) : 0;
