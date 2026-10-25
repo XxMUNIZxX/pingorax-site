@@ -35,13 +35,14 @@ function readValue(r: Reader, type: number, depth = 0): unknown {
     case 0: case 42: return null;
     case 98: return r.u8();                 // byte
     case 111: return r.u8() !== 0;          // bool
-    case 107: return r.i16();               // short
+    case 107: case 7: return r.i16();       // short
     case 105: return r.i32();               // int
     case 108: return r.i64();               // long
     case 102: return r.f32();
     case 100: return r.f64();
     case 115: return readString(r);
     case 120: { const n = r.i32(); return r.take(n); } // byte[]
+    case 99: { r.u8(); const n = r.u16(); return r.take(n); } // tipo customizado: devolve os bytes
     case 110: { const n = r.i32(); if (n < 0 || n > 100000) throw new RangeError("lista grande"); const a: number[] = []; for (let i = 0; i < n; i++) a.push(r.i32()); return a; }
     case 97: { const n = r.u16(); const a: string[] = []; for (let i = 0; i < n; i++) a.push(readString(r)); return a; }
     case 121: { const n = r.u16(); const t = r.u8(); const a: unknown[] = []; for (let i = 0; i < n; i++) a.push(readValue(r, t, depth + 1)); return a; }
@@ -63,16 +64,31 @@ function readParams(r: Reader, depth = 0): PhotonParams {
 }
 
 /** Lê uma mensagem já remontada (começa em 0xF3). Devolve null se não for evento/pedido/resposta que a gente entenda. */
-export function decodeMessage(bytes: Uint8Array): PhotonMessage | null {
+export function decodeMessage(bytes: Uint8Array, stats?: ParserStats): PhotonMessage | null {
   const r = new Reader(bytes);
-  if (r.left < 2 || r.u8() !== 0xf3) return null;
+  if (r.left < 2) return null;
+  const sig = r.u8();
+  if (sig !== 0xf3) { stats?.note(`assinatura ${sig}`); return null; }
   const type = r.u8();
+  if (type > 128) { if (stats) stats.encrypted++; return null; }
   try {
     if (type === 4) { const code = r.u8(); return { kind: "event", code, params: readParams(r) }; }
     if (type === 2) { const code = r.u8(); return { kind: "request", code, params: readParams(r) }; }
-    if (type === 3) { const code = r.u8(); const returnCode = r.i16(); readValue(r, r.u8()); return { kind: "response", code, returnCode, params: readParams(r) }; }
-  } catch { return null; }
+    if (type === 3 || type === 7) { const code = r.u8(); const returnCode = r.i16(); readValue(r, r.u8()); return { kind: "response", code, returnCode, params: readParams(r) }; }
+    stats?.note(`mensagem tipo ${type}`);
+  } catch (e) { stats?.note(`tipo ${type}: ${e instanceof Error ? e.message : "erro"}`); return null; }
   return null;
+}
+
+/** Contadores de cada etapa, para o diagnóstico mostrar onde a leitura trava. */
+export class ParserStats {
+  packets = 0; commands: Record<number, number> = {}; decoded = 0; encrypted = 0;
+  errors = new Map<string, number>();
+  note(reason: string) { this.errors.set(reason, (this.errors.get(reason) ?? 0) + 1); if (this.errors.size > 40) this.errors.delete(this.errors.keys().next().value as string); }
+  summary() {
+    return { packets: this.packets, decoded: this.decoded, encrypted: this.encrypted, commands: this.commands,
+      errors: [...this.errors].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([reason, count]) => ({ reason, count })) };
+  }
 }
 
 type Fragment = { total: number; got: number; data: Uint8Array; seen: Set<number> };
@@ -80,6 +96,7 @@ type Fragment = { total: number; got: number; data: Uint8Array; seen: Set<number
 /** Decodifica pacotes UDP um a um, remontando mensagens grandes que vêm em pedaços. */
 export class PhotonParser {
   private readonly fragments = new Map<number, Fragment>();
+  readonly stats = new ParserStats();
 
   /** Recebe o conteúdo do pacote UDP (sem os cabeçalhos de rede). */
   feed(packet: Uint8Array): PhotonMessage[] {
@@ -87,16 +104,18 @@ export class PhotonParser {
     try {
       const r = new Reader(packet);
       if (r.left < 12) return out;
-      r.u16(); const flags = r.u8(); const commands = r.u8(); r.u32(); r.i32();
-      if (flags === 1) return out; // pacote criptografado: não dá para ler
+      this.stats.packets++;
+      // Cabeçalho: peerId(2), crc ligado(1; 0 ou 1, NÃO indica criptografia), quantidade de comandos(1), tempo(4), desafio(4).
+      r.u16(); r.u8(); const commands = r.u8(); r.u32(); r.i32();
       for (let c = 0; c < commands && r.left >= 12; c++) {
         const type = r.u8(); r.u8(); r.u8(); r.u8(); const length = r.i32(); r.i32();
         const size = length - 12;
-        if (size < 0 || size > r.left) break;
+        this.stats.commands[type] = (this.stats.commands[type] ?? 0) + 1;
+        if (size < 0 || size > r.left) { this.stats.note("comando malformado"); break; }
         let body = r.take(size);
         if (type === 7) { if (body.length < 4) continue; body = body.subarray(4); }
-        if (type === 6 || type === 7) { const m = decodeMessage(body); if (m) out.push(m); }
-        else if (type === 8) { const whole = this.addFragment(body); if (whole) { const m = decodeMessage(whole); if (m) out.push(m); } }
+        if (type === 6 || type === 7) { const m = decodeMessage(body, this.stats); if (m) { out.push(m); this.stats.decoded++; } }
+        else if (type === 8) { const whole = this.addFragment(body); if (whole) { const m = decodeMessage(whole, this.stats); if (m) { out.push(m); this.stats.decoded++; } } }
       }
     } catch { /* pacote estranho: ignora */ }
     return out;

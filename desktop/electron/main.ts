@@ -52,7 +52,7 @@ const capture = new Capture((payload) => {
 
 function state(): State {
   const codes = [...codeCounts].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count).slice(0, 25);
-  return { snapshot: tracker.snapshot(settings.onlyParty), diag: { packets, messages, codes, capture: captureStatus }, lastSend, update, version: app.getVersion() };
+  return { snapshot: tracker.snapshot(settings.onlyParty), diag: { packets, messages, photon: parser.stats.summary(), codes, capture: captureStatus }, lastSend, update, version: app.getVersion() };
 }
 const push = () => { if (win && !win.isDestroyed()) win.webContents.send("state", state()); };
 

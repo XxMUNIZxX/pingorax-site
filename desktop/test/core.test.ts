@@ -55,6 +55,20 @@ describe("decodificador Photon", () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.params.get(1)).toBe("Fragmentado");
   });
+  it("lê pacote com o byte de CRC ligado (valor 1) e tipos extras", () => {
+    const body = event(C.newCharacter, [[0, val({ t: "i", v: 5 })], [1, val({ t: "s", v: "ComCrc" })], [9, cat(Uint8Array.of(99, 1), be(2, 2), Uint8Array.of(7, 7))], [10, cat(Uint8Array.of(7), be(300, 2))]]);
+    const pk = packet(body); pk[2] = 1;
+    const parser = new PhotonParser();
+    const [m] = parser.feed(pk);
+    expect(m?.params.get(1)).toBe("ComCrc");
+    expect(m?.params.get(10)).toBe(300);
+    expect(parser.stats.summary()).toMatchObject({ packets: 1, decoded: 1, commands: { 6: 1 } });
+  });
+  it("conta o motivo quando não entende a mensagem", () => {
+    const parser = new PhotonParser();
+    parser.feed(packet(Uint8Array.of(0xf3, 9, 0, 0)));
+    expect(parser.stats.summary().errors[0]?.reason).toBe("mensagem tipo 9");
+  });
   it("ignora lixo e pacotes criptografados sem quebrar", () => {
     const p = new PhotonParser();
     expect(p.feed(new Uint8Array([1, 2, 3]))).toEqual([]);
