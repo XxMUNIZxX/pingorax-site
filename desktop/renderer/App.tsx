@@ -113,7 +113,7 @@ export function App() {
         <details>
           <summary>Diagnóstico (use se algo não aparecer)</summary>
           <p className="msg">Pacotes lidos: <b>{fmt(diag.packets)}</b> · Mensagens entendidas: <b>{fmt(diag.messages)}</b> · Placas abertas: <b>{diag.capture.devices}</b></p>
-          <p className="msg">Pacotes Photon: <b>{fmt(diag.photon.packets)}</b> · Criptografadas: <b>{fmt(diag.photon.encrypted)}</b> · Comandos (tipo: vezes): {Object.entries(diag.photon.commands).map(([t, n]) => `${t}: ${n}`).join(" · ") || "nenhum"}</p>
+          <p className="msg">Pacotes Photon: <b>{fmt(diag.photon.packets)}</b> · Criptografadas: <b>{fmt(diag.photon.encrypted)}</b> · Formato 1.8: <b>{fmt(diag.photon.v18)}</b> · 1.6: <b>{fmt(diag.photon.v16)}</b> · Comandos (tipo: vezes): {Object.entries(diag.photon.commands).map(([t, n]) => `${t}: ${n}`).join(" · ") || "nenhum"}</p>
           <p className="msg">Por porta (pacotes / mensagens): {diag.ports.map((p) => `${p.port || "outra"}: ${fmt(p.packets)} / ${fmt(p.messages)}`).join(" · ") || "nenhuma"}</p>
           {diag.photon.errors.length > 0 && <p className="msg">Motivos de não entender: {diag.photon.errors.map((e) => `${e.reason} (${e.count})`).join(" · ")}</p>}
           <p className="msg">Eventos mais vistos (código: vezes): {diag.codes.length ? diag.codes.map((c) => `${c.code}: ${c.count}`).join(" · ") : "nenhum"}</p>
