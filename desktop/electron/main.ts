@@ -34,6 +34,7 @@ let settings = { ...DEFAULTS };
 const sentIds = new Set<string>();
 const codeCounts = new Map<number, number>();
 let packets = 0; let messages = 0;
+const ports = new Map<number, { packets: number; messages: number }>();
 let lastSend: State["lastSend"] = null;
 let update: string | null = null;
 let captureStatus: { running: boolean; devices: number; error?: string | undefined } = { running: false, devices: 0 };
@@ -41,10 +42,11 @@ let dirty = false; let sending = false;
 
 const tracker = new Tracker(DEFAULT_CODES, () => { dirty = true; });
 const parser = new PhotonParser();
-const capture = new Capture((payload) => {
+const capture = new Capture((payload, port) => {
   packets++;
+  const pc = ports.get(port) ?? { packets: 0, messages: 0 }; pc.packets++; ports.set(port, pc);
   for (const m of parser.feed(payload)) {
-    messages++;
+    messages++; pc.messages++;
     if (m.kind === "event") { const c = gameCode(m); codeCounts.set(c, (codeCounts.get(c) ?? 0) + 1); }
     tracker.handle(m);
   }
@@ -52,7 +54,7 @@ const capture = new Capture((payload) => {
 
 function state(): State {
   const codes = [...codeCounts].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count).slice(0, 25);
-  return { snapshot: tracker.snapshot(settings.onlyParty), diag: { packets, messages, photon: parser.stats.summary(), codes, capture: captureStatus }, lastSend, update, version: app.getVersion() };
+  return { snapshot: tracker.snapshot(settings.onlyParty), diag: { packets, messages, photon: parser.stats.summary(), ports: [...ports].map(([port, v]) => ({ port, ...v })), codes, capture: captureStatus }, lastSend, update, version: app.getVersion() };
 }
 const push = () => { if (win && !win.isDestroyed()) win.webContents.send("state", state()); };
 
@@ -113,7 +115,7 @@ else {
     ipcMain.handle("update:install", () => { autoUpdater.quitAndInstall(); });
     ipcMain.handle("log:save", async () => {
       const file = path.join(app.getPath("desktop"), "pingorax-logger-diagnostico.json");
-      const data = { when: new Date().toISOString(), version: app.getVersion(), diag: state().diag, snapshot: tracker.snapshot(false) };
+      const data = { when: new Date().toISOString(), version: app.getVersion(), diag: state().diag, amostras: parser.stats.samples, snapshot: tracker.snapshot(false) };
       try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); } catch (e) { void dialog.showErrorBox("Não consegui salvar", String(e)); return ""; }
       return file;
     });
