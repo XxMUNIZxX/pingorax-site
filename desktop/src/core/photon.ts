@@ -1,6 +1,8 @@
 // Decodificador do protocolo Photon (v1.6, usado pelo Albion): pega um pacote UDP e devolve as mensagens (eventos, pedidos e respostas).
 // Tudo em big-endian. Pacotes que não conseguimos ler são ignorados (o jogo manda muita coisa que não nos interessa).
 
+import { decodeMessage18, Fail } from "./photon18";
+
 export type PhotonParams = Map<number, unknown>;
 export type PhotonMessage =
   | { kind: "event"; code: number; params: PhotonParams }
@@ -73,26 +75,37 @@ export function decodeMessage(bytes: Uint8Array, stats?: ParserStats): PhotonMes
   if (sig !== 0xf3) { stats?.note(`assinatura ${sig}`); stats?.sample(`assinatura ${sig}`, bytes, 0, []); return null; }
   const type = r.u8();
   if (type > 128) { if (stats) stats.encrypted++; return null; }
+  if (type !== 2 && type !== 3 && type !== 4 && type !== 7) { stats?.note(`mensagem tipo ${type}`); return null; }
+  // O Albion atual usa o formato 1.8; o 1.6 fica como reserva (e para os testes com capturas antigas).
+  let why18 = "";
+  try { const m = decodeMessage18(bytes); if (m) { if (stats) stats.v18++; return m; } } catch (e) { if (e instanceof Fail) { why18 = `${e.message}; falhou no parâmetro ${e.key}`; stats?.sample18(e.message, bytes, e.pos, e.okKeys, e.key); } }
   try {
-    if (type === 4) { const code = r.u8(); return { kind: "event", code, params: readParams(r) }; }
-    if (type === 2) { const code = r.u8(); return { kind: "request", code, params: readParams(r) }; }
-    if (type === 3 || type === 7) { const code = r.u8(); const returnCode = r.i16(); readValue(r, r.u8()); return { kind: "response", code, returnCode, params: readParams(r) }; }
-    stats?.note(`mensagem tipo ${type}`);
+    const m = decode16(bytes);
+    if (m) { if (stats) stats.v16++; return m; }
   } catch (e) {
     const why = e instanceof Error ? e.message : "erro";
     stats?.note(`tipo ${type}: ${why.replace(/\d+/g, "N")}`);
-    stats?.sample(`tipo ${type}: ${why}; falhou no parâmetro ${r.failKey}`, bytes, r.pos, r.okKeys);
-    return null;
+    stats?.sample(`tipo ${type} (1.8: ${why18}) (1.6: ${why}; param ${r.failKey})`, bytes, r.pos, r.okKeys);
   }
+  return null;
+}
+
+function decode16(bytes: Uint8Array): PhotonMessage | null {
+  const r = new Reader(bytes); r.u8(); const type = r.u8();
+  if (type === 4) { const code = r.u8(); return { kind: "event", code, params: readParams(r) }; }
+  if (type === 2) { const code = r.u8(); return { kind: "request", code, params: readParams(r) }; }
+  if (type === 3 || type === 7) { const code = r.u8(); const returnCode = r.i16(); readValue(r, r.u8()); return { kind: "response", code, returnCode, params: readParams(r) }; }
   return null;
 }
 
 /** Contadores de cada etapa, para o diagnóstico mostrar onde a leitura trava. */
 export class ParserStats {
-  packets = 0; commands: Record<number, number> = {}; decoded = 0; encrypted = 0;
+  packets = 0; commands: Record<number, number> = {}; decoded = 0; encrypted = 0; v18 = 0; v16 = 0;
   errors = new Map<string, number>();
   samples: { reason: string; at: number; okKeys: number[]; hex: string }[] = [];
   note(reason: string) { this.errors.set(reason, (this.errors.get(reason) ?? 0) + 1); if (this.errors.size > 40) this.errors.delete(this.errors.keys().next().value as string); }
+  /** Falha no formato 1.8 (o principal): guarda o exemplo e conta o motivo. */
+  sample18(reason: string, bytes: Uint8Array, at: number, okKeys: number[], key: number) { this.note(`1.8: ${reason.replace(/\d+/g, "N")}`); this.sample(`1.8: ${reason}; parâmetro ${key}`, bytes, at, okKeys); }
   /** Guarda alguns exemplos de mensagens que não deu para ler (bytes em hexadecimal) para eu analisar. */
   sample(reason: string, bytes: Uint8Array, at: number, okKeys: number[]) {
     const cls = reason.replace(/\d+/g, "N").split(";")[0]!;
@@ -100,7 +113,7 @@ export class ParserStats {
     this.samples.push({ reason, at, okKeys: [...okKeys], hex: Array.from(bytes.subarray(0, 220), (b) => b.toString(16).padStart(2, "0")).join("") });
   }
   summary() {
-    return { packets: this.packets, decoded: this.decoded, encrypted: this.encrypted, commands: this.commands,
+    return { packets: this.packets, decoded: this.decoded, encrypted: this.encrypted, v18: this.v18, v16: this.v16, commands: this.commands,
       errors: [...this.errors].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([reason, count]) => ({ reason, count })) };
   }
 }
