@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 type CapModule = {
   Cap: new () => { open(device: string, filter: string, bufSize: number, buffer: Buffer): string; setMinBytes?(n: number): void; on(ev: "packet", cb: (nbytes: number) => void): void; close(): void };
-  decoders: { PROTOCOL: { ETHERNET: { IPV4: number }; IP: { UDP: number } }; Ethernet(b: Buffer): { info: { type: number }; offset: number }; IPV4(b: Buffer, o: number): { info: { protocol: number }; offset: number }; UDP(b: Buffer, o: number): { info: { length: number }; offset: number } };
+  decoders: { PROTOCOL: { ETHERNET: { IPV4: number }; IP: { UDP: number } }; Ethernet(b: Buffer): { info: { type: number }; offset: number }; IPV4(b: Buffer, o: number): { info: { protocol: number }; offset: number }; UDP(b: Buffer, o: number): { info: { length: number; srcport: number; dstport: number }; offset: number } };
 };
 type Device = { name: string; addresses: { addr?: string }[] };
 
@@ -11,7 +11,7 @@ export type CaptureStatus = { running: boolean; devices: number; error?: string 
 
 export class Capture {
   private caps: { close(): void }[] = [];
-  constructor(private readonly onPacket: (payload: Uint8Array) => void) {}
+  constructor(private readonly onPacket: (payload: Uint8Array, port: number) => void) {}
 
   start(): CaptureStatus {
     this.stop();
@@ -39,7 +39,7 @@ export class Capture {
             if (ip.info.protocol !== PROTOCOL.IP.UDP) return;
             const udp = decoders.UDP(buffer, ip.offset);
             const end = Math.min(nbytes, udp.offset + udp.info.length - 8);
-            if (end > udp.offset) this.onPacket(Uint8Array.from(buffer.subarray(udp.offset, end)));
+            if (end > udp.offset) this.onPacket(Uint8Array.from(buffer.subarray(udp.offset, end)), [5055, 5056, 5058].find((p) => p === udp.info.srcport || p === udp.info.dstport) ?? 0);
           } catch { /* pacote estranho */ }
         });
         this.caps.push(cap);

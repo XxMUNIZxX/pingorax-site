@@ -10,6 +10,8 @@ export type PhotonMessage =
 class Reader {
   private readonly view: DataView;
   pos = 0;
+  /** Último parâmetro lido e os que deram certo, para explicar onde uma mensagem quebrou. */
+  failKey = -1; okKeys: number[] = [];
   constructor(readonly bytes: Uint8Array) { this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); }
   get left() { return this.bytes.length - this.pos; }
   private need(n: number) { if (n < 0 || this.pos + n > this.bytes.length) throw new RangeError("fim dos dados"); }
@@ -59,7 +61,7 @@ function readValue(r: Reader, type: number, depth = 0): unknown {
 
 function readParams(r: Reader, depth = 0): PhotonParams {
   const n = r.u16(); const out: PhotonParams = new Map();
-  for (let i = 0; i < n; i++) { const key = r.u8(); out.set(key, readValue(r, r.u8(), depth)); }
+  for (let i = 0; i < n; i++) { const key = r.u8(); r.failKey = key; out.set(key, readValue(r, r.u8(), depth)); r.okKeys.push(key); }
   return out;
 }
 
@@ -68,7 +70,7 @@ export function decodeMessage(bytes: Uint8Array, stats?: ParserStats): PhotonMes
   const r = new Reader(bytes);
   if (r.left < 2) return null;
   const sig = r.u8();
-  if (sig !== 0xf3) { stats?.note(`assinatura ${sig}`); return null; }
+  if (sig !== 0xf3) { stats?.note(`assinatura ${sig}`); stats?.sample(`assinatura ${sig}`, bytes, 0, []); return null; }
   const type = r.u8();
   if (type > 128) { if (stats) stats.encrypted++; return null; }
   try {
@@ -76,7 +78,12 @@ export function decodeMessage(bytes: Uint8Array, stats?: ParserStats): PhotonMes
     if (type === 2) { const code = r.u8(); return { kind: "request", code, params: readParams(r) }; }
     if (type === 3 || type === 7) { const code = r.u8(); const returnCode = r.i16(); readValue(r, r.u8()); return { kind: "response", code, returnCode, params: readParams(r) }; }
     stats?.note(`mensagem tipo ${type}`);
-  } catch (e) { stats?.note(`tipo ${type}: ${e instanceof Error ? e.message : "erro"}`); return null; }
+  } catch (e) {
+    const why = e instanceof Error ? e.message : "erro";
+    stats?.note(`tipo ${type}: ${why.replace(/\d+/g, "N")}`);
+    stats?.sample(`tipo ${type}: ${why}; falhou no parâmetro ${r.failKey}`, bytes, r.pos, r.okKeys);
+    return null;
+  }
   return null;
 }
 
@@ -84,7 +91,14 @@ export function decodeMessage(bytes: Uint8Array, stats?: ParserStats): PhotonMes
 export class ParserStats {
   packets = 0; commands: Record<number, number> = {}; decoded = 0; encrypted = 0;
   errors = new Map<string, number>();
+  samples: { reason: string; at: number; okKeys: number[]; hex: string }[] = [];
   note(reason: string) { this.errors.set(reason, (this.errors.get(reason) ?? 0) + 1); if (this.errors.size > 40) this.errors.delete(this.errors.keys().next().value as string); }
+  /** Guarda alguns exemplos de mensagens que não deu para ler (bytes em hexadecimal) para eu analisar. */
+  sample(reason: string, bytes: Uint8Array, at: number, okKeys: number[]) {
+    const cls = reason.replace(/\d+/g, "N").split(";")[0]!;
+    if (this.samples.length >= 24 || this.samples.filter((s) => s.reason.replace(/\d+/g, "N").split(";")[0] === cls).length >= 3) return;
+    this.samples.push({ reason, at, okKeys: [...okKeys], hex: Array.from(bytes.subarray(0, 220), (b) => b.toString(16).padStart(2, "0")).join("") });
+  }
   summary() {
     return { packets: this.packets, decoded: this.decoded, encrypted: this.encrypted, commands: this.commands,
       errors: [...this.errors].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([reason, count]) => ({ reason, count })) };
