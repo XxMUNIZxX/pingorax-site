@@ -23,3 +23,12 @@ Quem pingou (ou está na fila) e quem gerencia o conteúdo. Só o caller e os ed
 ## Próximos passos (ainda não feitos)
 - **Programa para o PC** que lê o tráfego do jogo e envia loot e dps sozinho para a sessão (o site já guarda e mostra; falta a ponte).
 - Sessão ligada à presença marcada e histórico de loot por jogador.
+
+## Usar o programa do Triky313 (loot logger e medidor de dps)
+
+O programa [AlbionOnline-StatisticsAnalysis](https://github.com/Triky313/AlbionOnline-StatisticsAnalysis) lê o jogo e já tem loot logger e medidor de dps. O PingoraX importa o que ele gera:
+
+- **Loot:** no programa, na aba do loot logger, use **Exportar loot** (JSON ou CSV). No conteúdo, em Loot → **Importar do programa de loot**, escolha o arquivo. Itens iguais da mesma pessoa são somados e o preço estimado do programa vira o valor de cada. Exportar e importar de novo durante o conteúdo atualiza os itens importados, sem duplicar; itens digitados à mão ficam.
+- **Dps:** no medidor do programa, use o botão de copiar. No conteúdo, em Dps → **Colar o dps**, cole o texto. Deixe **desligada** a opção de medidor curto do programa (ela copia só a porcentagem, sem o dano).
+
+Depois é só ajustar o método de divisão e usar **Enviar ao Discord**.

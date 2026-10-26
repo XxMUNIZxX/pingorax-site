@@ -103,6 +103,25 @@ export async function addLootItems(sessionId: string, items: PastedItem[]) {
   if (error) throw error;
 }
 
+/**
+ * Importa o loot exportado pelo programa do Triky313. Itens importados antes (external_id "imp:...") são trocados pelos novos,
+ * então dá para exportar de novo durante o conteúdo e importar outra vez sem duplicar. Itens digitados à mão ficam.
+ */
+export async function importLootItems(sessionId: string, items: { name: string; quantity: number; unit_value: number; looted_by: string | null; external_id: string }[]) {
+  if (items.length === 0) return;
+  const clear = await supabase.from("loot_items").delete().eq("session_id", sessionId).like("external_id", "imp:%");
+  const rows = items.map((i) => ({ session_id: sessionId, name: i.name, quantity: i.quantity, unit_value: i.unit_value, looted_by: i.looted_by, external_id: i.external_id }));
+  if (clear.error && /external_id/i.test(clear.error.message)) {
+    // Migração 0022 ainda não rodada: sem como evitar duplicar, então só acrescenta.
+    const { error } = await supabase.from("loot_items").insert(rows.map(({ external_id: _e, ...rest }) => rest));
+    if (error) throw error;
+    return;
+  }
+  if (clear.error) throw clear.error;
+  const { error } = await supabase.from("loot_items").insert(rows);
+  if (error) throw error;
+}
+
 export async function deleteLootItem(id: string) {
   const { error } = await supabase.from("loot_items").delete().eq("id", id);
   if (error) throw error;
