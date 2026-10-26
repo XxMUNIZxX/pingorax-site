@@ -127,7 +127,13 @@ function SessionView({ session, canEdit, participants, onChanged }: { session: L
           <Button size="sm" variant="outline" onClick={async () => { const ok = await copyText(splitSummaryText(title, result)); if (ok) toast.success("Resumo copiado! Cole no Discord."); else toast.error("Não consegui copiar."); }}><Copy /> Copiar resumo</Button>
           {canEdit && <Button size="sm" variant="outline" disabled={dirty || sending} title={dirty ? "Salve a divisão antes de enviar" : undefined} onClick={async () => { setSending(true); try { const r = await sendLoot({ data: { sessionId: session.id } }); if (r.ok) toast.success("Resumo enviado ao Discord."); else toast.error(r.error); } catch { toast.error("Não foi possível enviar."); } finally { setSending(false); } }}><Send /> {sending ? "Enviando..." : "Enviar ao Discord"}</Button>}
           {canEdit && <Button size="sm" variant="gold" disabled={!dirty || saving} onClick={() => void saveAll()}>{saving ? "Salvando..." : dirty ? "Salvar divisão" : "Salvo"}</Button>}
-          {canEdit && <Button size="sm" variant="outline" onClick={() => void run(() => saveLootSession(session.id, { status: session.status === "open" ? "closed" : "open" }))}>{session.status === "open" ? "Fechar sessão" : "Reabrir"}</Button>}
+          {canEdit && <Button size="sm" variant="outline" onClick={() => void run(async () => {
+            if (session.status === "open") {
+              // Ao fechar, salva também a divisão atual e guarda quanto cada um recebeu (histórico do perfil).
+              await saveLootSession(session.id, { title, silver, split, people, status: "closed", result: { total: result.gross, rows: result.rows.filter((r) => r.total > 0).map((r) => ({ nick: r.nick, total: r.total })) } });
+              setDirty(false);
+            } else await saveLootSession(session.id, { status: "open", result: null });
+          })}>{session.status === "open" ? "Fechar sessão" : "Reabrir"}</Button>}
           {canEdit && <Button size="sm" variant="ghost" aria-label="Excluir sessão" onClick={() => { if (window.confirm(`Excluir a sessão "${session.title}" com todo o loot e dps?`)) void run(() => deleteLootSession(session.id)); }}><Trash2 /></Button>}
         </div>
       </div>

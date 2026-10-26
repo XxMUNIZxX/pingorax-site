@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { isMissingLoot, lootTotal, normalizeConfig, normalizePeople } from "@/lib/loot";
+import { isMissingLoot, lootTotal, myShares, normalizeConfig, normalizePeople, normalizeResult } from "@/lib/loot";
 
 describe("tabelas de loot ainda não criadas", () => {
   it("reconhece o erro do Supabase", () => {
@@ -35,5 +35,23 @@ describe("total do loot", () => {
   it("soma a prata direta e os itens (quantidade x valor)", () => {
     const items = [{ id: "1", session_id: "s", name: "A", quantity: 2, unit_value: 1000, looted_by: null }, { id: "2", session_id: "s", name: "B", quantity: 1, unit_value: 500, looted_by: null }];
     expect(lootTotal({ silver: 300, items })).toBe(2800);
+  });
+});
+
+describe("histórico de loot", () => {
+  it("lê o resultado guardado e ignora o que está errado", () => {
+    expect(normalizeResult({ total: 1000.9, rows: [{ nick: " Ana ", total: 400.5 }, { nick: "", total: 1 }, { nick: "Bia", total: -3 }, { nick: "Cai", total: "x" }, 7] }))
+      .toEqual({ total: 1000, rows: [{ nick: "Ana", total: 400 }] });
+    expect(normalizeResult(null)).toBeNull();
+    expect(normalizeResult({ total: 1 })).toBeNull();
+  });
+  it("acha quanto o jogador recebeu, sem diferenciar maiúsculas", () => {
+    const sessions = [
+      { id: "s1", event_id: "e1", title: "Loot", created_at: "2026-10-20T10:00:00Z", result: { total: 900, rows: [{ nick: "ANA", total: 300 }, { nick: "Bia", total: 600 }] }, events: { title: "Dungeon" } },
+      { id: "s2", event_id: "e2", title: "Loot 2", created_at: "2026-10-21T10:00:00Z", result: { total: 100, rows: [{ nick: "Bia", total: 100 }] }, events: null },
+      { id: "s3", event_id: "e3", title: "Sem resultado", created_at: "2026-10-22T10:00:00Z", result: null },
+    ];
+    expect(myShares(sessions, "ana")).toEqual([{ sessionId: "s1", eventId: "e1", eventTitle: "Dungeon", sessionTitle: "Loot", at: "2026-10-20T10:00:00Z", mine: 300 }]);
+    expect(myShares(sessions, "Bia").map((e) => [e.sessionId, e.eventTitle, e.mine])).toEqual([["s1", "Dungeon", 600], ["s2", "Conteúdo", 100]]);
   });
 });

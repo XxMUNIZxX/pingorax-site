@@ -32,3 +32,7 @@ O programa [AlbionOnline-StatisticsAnalysis](https://github.com/Triky313/AlbionO
 - **Dps:** no medidor do programa, use o botão de copiar. No conteúdo, em Dps → **Colar o dps**, cole o texto. Deixe **desligada** a opção de medidor curto do programa (ela copia só a porcentagem, sem o dano).
 
 Depois é só ajustar o método de divisão e usar **Enviar ao Discord**.
+
+## Histórico no perfil
+
+Ao **Fechar sessão**, o site salva a divisão final (quanto cada pessoa recebeu). Em **Meu perfil → Meu loot** cada jogador vê os conteúdos em que recebeu loot e o total. Reabrir a sessão apaga esse resultado até ela ser fechada de novo. Requer a migração `0023_loot_history.sql`.
