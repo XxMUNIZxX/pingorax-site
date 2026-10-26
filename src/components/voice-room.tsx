@@ -122,7 +122,7 @@ export function VoiceRoom({ eventId }: { eventId: string }) {
 
   return (
     <section className="mt-8 border-t border-border pt-6" aria-label="Sala de voz">
-      <h2 className="flex items-center gap-2 text-xl font-bold"><Volume2 className="h-5 w-5 text-primary" /> Voz e tela <span className="text-sm font-normal text-muted-foreground">só quem pingou entra</span></h2>
+      <h2 className="flex flex-wrap items-center gap-x-2 text-xl font-bold"><Volume2 className="h-5 w-5 text-primary" /> Voz e tela <span className="text-sm font-normal text-muted-foreground">só quem pingou entra</span></h2>
       <div ref={audioHost} className="hidden" aria-hidden="true" />
       {!connected ? (
         <div className="mt-3"><Button variant="gold" onClick={() => void join()} disabled={joining}>{joining ? "Entrando..." : "Entrar na voz"}</Button></div>

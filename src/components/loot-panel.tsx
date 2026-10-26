@@ -237,9 +237,9 @@ function ItemsBox({ session, canEdit, silverText, onSilver, total, run }: { sess
       </div>
       <ul className="mt-2 divide-y divide-border/60 text-sm">
         {session.items.map((item) => (
-          <li key={item.id} className="flex items-center gap-3 py-1.5">
-            <span className="min-w-0 flex-1 truncate">{item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}{item.looted_by ? <span className="text-xs text-muted-foreground"> · {item.looted_by}</span> : null}</span>
-            <span className="shrink-0 text-muted-foreground">{fmt(item.unit_value)}{item.quantity > 1 ? ` cada` : ""}</span>
+          <li key={item.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-1.5">
+            <span className="min-w-0 basis-full break-words sm:basis-0 sm:flex-1 sm:truncate">{item.quantity > 1 ? `${item.quantity}× ` : ""}{item.name}{item.looted_by ? <span className="text-xs text-muted-foreground"> · {item.looted_by}</span> : null}</span>
+            <span className="ml-auto shrink-0 text-muted-foreground sm:ml-0">{fmt(item.unit_value)}{item.quantity > 1 ? ` cada` : ""}</span>
             <span className="w-24 shrink-0 text-right font-semibold">{fmt(item.quantity * item.unit_value)}</span>
             {canEdit && <button type="button" aria-label={`Remover ${item.name}`} className="shrink-0 text-muted-foreground hover:text-destructive" onClick={() => void run(() => deleteLootItem(item.id))}><Trash2 className="h-4 w-4" /></button>}
           </li>
@@ -297,9 +297,9 @@ function DpsBox({ session, canEdit, run }: { session: LootSession; canEdit: bool
       <p className={label}>Dps</p>
       <ul className="mt-2 space-y-1.5 text-sm">
         {rows.map((r) => (
-          <li key={r.nick} className="flex items-center gap-3">
-            <span className="w-32 shrink-0 truncate font-semibold">{r.nick}</span>
-            <span className="relative h-5 min-w-0 flex-1 overflow-hidden rounded bg-secondary" role="img" aria-label={`${r.nick}: ${fmt(r.damage)} de dano`}>
+          <li key={r.nick} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="min-w-0 flex-1 truncate font-semibold sm:w-32 sm:flex-none">{r.nick}</span>
+            <span className="relative order-last h-5 basis-full overflow-hidden rounded bg-secondary sm:order-none sm:min-w-0 sm:basis-0 sm:flex-1" role="img" aria-label={`${r.nick}: ${fmt(r.damage)} de dano`}>
               <span className="absolute inset-y-0 left-0 rounded bg-primary/70" style={{ width: `${(r.damage / maxDamage) * 100}%` }} />
             </span>
             <span className="w-28 shrink-0 text-right">{fmt(r.damage)} <span className="text-xs text-muted-foreground">{totalDamage ? `${Math.round((r.damage / totalDamage) * 100)}%` : ""}</span></span>
