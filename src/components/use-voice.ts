@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RemoteTrack, Room as LiveKitRoom } from "livekit-client";
-import { getVoiceToken } from "@/lib/voice.functions";
 import { effectiveVolume, isForbiddenKey, isTypingTarget, type VoiceSettings } from "@/lib/voice-settings";
 
 export type Person = { id: string; name: string; speaking: boolean; muted: boolean; me: boolean };
@@ -22,7 +21,10 @@ const captureOf = (s: VoiceSettings) => ({
  * Sala de voz do conteúdo (LiveKit): entrar, microfone aberto ou aperte para falar, mudo, ensurdecer, compartilhar tela,
  * trocar microfone e fone na hora e volume de cada pessoa.
  */
-export function useVoice(eventId: string, settings: VoiceSettings) {
+export type VoiceGrant = { ok: true; url: string; token: string; name: string } | { ok: false; error: string };
+
+export function useVoice(roomKey: string, fetchGrant: () => Promise<VoiceGrant>, settings: VoiceSettings) {
+  const grantRef = useRef(fetchGrant); grantRef.current = fetchGrant;
   const roomRef = useRef<LiveKitRoom | null>(null);
   const lkRef = useRef<typeof import("livekit-client") | null>(null);
   const audioHost = useRef<HTMLDivElement>(null);
@@ -39,7 +41,7 @@ export function useVoice(eventId: string, settings: VoiceSettings) {
   const micQueue = useRef<Promise<void>>(Promise.resolve());
   const applied = useRef({ micId: "", speakerId: "", echo: true, noise: true, gain: true });
 
-  useEffect(() => () => { void roomRef.current?.disconnect(); }, []);
+  useEffect(() => () => { void roomRef.current?.disconnect(); }, [roomKey]);
 
   const wantMic = connected && !muted && !deafened && (settings.mode === "open" || pttHeld);
 
@@ -104,8 +106,8 @@ export function useVoice(eventId: string, settings: VoiceSettings) {
   const join = useCallback(async () => {
     setJoining(true);
     try {
-      let granted: Awaited<ReturnType<typeof getVoiceToken>>;
-      try { granted = await getVoiceToken({ data: { eventId } }); }
+      let granted: VoiceGrant;
+      try { granted = await grantRef.current(); }
       catch (err) { console.error("voz: chave de acesso", err); toast.error(`O site não conseguiu gerar a chave da sala (${reason(err)}).`); return; }
       if (!granted.ok) { toast.error(granted.error); return; }
       const lk = await import("livekit-client");
@@ -134,6 +136,7 @@ export function useVoice(eventId: string, settings: VoiceSettings) {
       room.on(lk.RoomEvent.LocalTrackPublished, refresh);
       room.on(lk.RoomEvent.LocalTrackUnpublished, refresh);
       room.on(lk.RoomEvent.Disconnected, () => {
+        if (roomRef.current && roomRef.current !== room) return; // já entrou em outro canal
         roomRef.current = null;
         setConnected(false); setSharing(false); setTalking(false); setPeople([]); setScreens([]);
         if (audioHost.current) audioHost.current.replaceChildren();
@@ -154,7 +157,7 @@ export function useVoice(eventId: string, settings: VoiceSettings) {
       console.error("voz: entrar", err);
       toast.error(`Não consegui entrar na sala de voz (${reason(err)}).`);
     } finally { setJoining(false); }
-  }, [eventId]);
+  }, [roomKey]);
 
   const leave = useCallback(() => { void roomRef.current?.disconnect(); }, []);
   const toggleMute = useCallback(() => setMuted((m) => !m), []);

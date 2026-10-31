@@ -42,3 +42,27 @@ export const getVoiceToken = createServerFn({ method: "POST" })
     const token = await signLiveKitToken({ apiKey: cfg.apiKey, apiSecret: cfg.apiSecret, room: roomName(data.eventId), identity: userId, name });
     return { ok: true, url: cfg.url, token, name };
   });
+
+/** Chave de acesso de um canal de voz da guilda: só dono, moderadores e membros (a regra é a do banco). */
+export const getChannelVoiceToken = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((value: unknown) => z.object({ channelId: z.string().uuid() }).parse(value))
+  .handler(async ({ data, context }): Promise<{ ok: true; url: string; token: string; name: string } | Fail> => {
+    const { livekitConfig, signLiveKitToken, looksSwapped } = await import("@/lib/voice.server");
+    const { channelRoomName } = await import("@/lib/voice");
+    const cfg = livekitConfig();
+    if (!cfg) return { ok: false, error: "A sala de voz ainda não foi configurada no servidor." };
+    if (looksSwapped(cfg.apiKey, cfg.apiSecret)) return { ok: false, error: "LIVEKIT_API_KEY e LIVEKIT_API_SECRET parecem trocados: a key começa com \"API\"." };
+
+    const { supabase, userId } = context;
+    // A leitura passa pelas regras do banco: quem não é membro não enxerga o canal.
+    const channel = await supabase.from("guild_channels" as never).select("id,kind,guild_id").eq("id", data.channelId).maybeSingle();
+    const row = channel.data as { id: string; kind: string; guild_id: string } | null;
+    if (!row || row.kind !== "voice") return { ok: false, error: "Canal de voz não encontrado." };
+    const member = await supabase.rpc("is_guild_member" as never, { _guild: row.guild_id } as never);
+    if (member.data !== true) return { ok: false, error: "Só membros da guilda entram nesta sala." };
+    const profile = await supabase.from("profiles").select("albion_nick,display_name").eq("user_id", userId).maybeSingle();
+    const name = profile.data?.albion_nick?.trim() || profile.data?.display_name?.trim() || "Membro";
+    const token = await signLiveKitToken({ apiKey: cfg.apiKey, apiSecret: cfg.apiSecret, room: channelRoomName(row.id), identity: userId, name });
+    return { ok: true, url: cfg.url, token, name };
+  });
