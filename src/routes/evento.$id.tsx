@@ -21,7 +21,6 @@ import { SHARE_ORIGIN } from "@/lib/share-image";
 import { ContentRoom } from "@/components/content-room";
 import { LootPanel } from "@/components/loot-panel";
 import { ReuseBox } from "@/components/reuse-box";
-import { ReuseBox } from "@/components/reuse-box";
 import { MyNickProvider, PingGate, useMyNick } from "@/components/require-login";
 
 export const Route = createFileRoute("/evento/$id")({
