@@ -62,7 +62,7 @@ export function EventChat({ eventId, canModerate }: { eventId: string; canModera
 
   return (
     <section className="mt-8 border-t border-border pt-6" aria-label="Chat do conteúdo">
-      <h2 className="flex items-center gap-2 text-xl font-bold"><MessageCircle className="h-5 w-5 text-primary" /> Chat <span className="text-sm font-normal text-muted-foreground">ao vivo · só quem pingou escreve</span></h2>
+      <h2 className="flex flex-wrap items-center gap-x-2 text-xl font-bold"><MessageCircle className="h-5 w-5 text-primary" /> Chat <span className="text-sm font-normal text-muted-foreground">ao vivo · só quem pingou escreve</span></h2>
       <div ref={listRef} className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded-xl border border-border bg-card/40 p-3" role="log" aria-live="polite">
         {chat.isLoading && <p className="text-sm text-muted-foreground">Carregando o chat...</p>}
         {!chat.isLoading && messages.length === 0 && <p className="text-sm text-muted-foreground">Ninguém falou ainda. Combine o ponto de encontro, a build e o horário aqui.</p>}
