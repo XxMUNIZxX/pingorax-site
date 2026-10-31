@@ -124,6 +124,27 @@ export async function setMemberRole(guildId: string, userId: string, role: "mod"
   if (error) throw error;
 }
 
+export async function banMember(guildId: string, userId: string): Promise<void> {
+  const { error } = await db.rpc("ban_guild_member", { _guild: guildId, _user: userId });
+  if (error) throw new Error(error.message);
+}
+
+export type OpenSpace = { id: string; slug: string; name: string; description: string | null };
+
+/** Espaços públicos que a pessoa ainda não frequenta. Vazio quando a migração 0025 não foi rodada. */
+export async function fetchOpenSpaces(): Promise<OpenSpace[]> {
+  const { data, error } = await db.from("guilds").select("id,slug,name,description").eq("is_open", true).order("name").limit(20);
+  if (error) return [];
+  return (data ?? []) as OpenSpace[];
+}
+
+/** Entra num espaço aberto com um clique; devolve o slug. */
+export async function joinOpenSpace(guildId: string): Promise<string> {
+  const { data, error } = await db.rpc("join_open_space", { _guild: guildId });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
 export async function removeMember(guildId: string, userId: string): Promise<void> {
   const { error } = await db.from("guild_members").delete().eq("guild_id", guildId).eq("user_id", userId);
   if (error) throw error;
