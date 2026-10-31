@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Ban, Compass, Copy, Crown, Eraser, Hash, Headphones, HeadphoneOff, LogOut, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Plus, Send, Settings, Shield, Trash2, UserPlus, Users, Volume2, X } from "lucide-react";
+import { Ban, Compass, Copy, Crown, Eraser, Swords, Hash, Headphones, HeadphoneOff, LogOut, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Plus, Send, Settings, Shield, Trash2, UserPlus, Users, Volume2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,6 +13,8 @@ import { useVoice } from "@/components/use-voice";
 import { VoiceSettingsDialog } from "@/components/voice-settings-dialog";
 import { getChannelVoiceToken, getVoiceStatus } from "@/lib/voice.functions";
 import { mergeMessages } from "@/lib/chat";
+import { formatDate } from "@/lib/events";
+import { fetchMyPings } from "@/lib/my-pings";
 import { chatTime, groupMessages, keyLabel, loadVoiceSettings, nickHue, saveVoiceSettings, type VoiceSettings } from "@/lib/voice-settings";
 import {
   SPACE_MESSAGE_MAX, canModerate, clearChannel, createChannel, createInvite, deleteChannel, deleteSpaceMessage, fetchChannels, fetchInvites, fetchSpaceMembers, fetchSpaceMessages,
@@ -46,6 +48,8 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
   const members = useQuery({ queryKey: ["space-members", space?.id], queryFn: () => fetchSpaceMembers(space!.id), enabled: !!space });
   const me = members.data?.find((m) => m.user_id === userId);
   const myName = me?.name ?? "Você";
+  const pings = useQuery({ queryKey: ["my-pings", me?.nick], queryFn: () => fetchMyPings(me!.nick!), enabled: !!me?.nick, staleTime: 60_000, retry: false });
+  const myContents = (pings.data?.upcoming ?? []).slice(0, 6);
   const mod = !!space && canModerate(space.role);
   const voiceOn = !!status.data?.enabled;
 
@@ -116,6 +120,17 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3">
             {(
               <div className="flex flex-wrap gap-1.5 px-3 md:hidden">{spaces.map((s) => <button key={s.id} type="button" onClick={() => pickGuild(s)} className={`rounded-full border px-2.5 py-1 text-xs ${s.id === space.id ? "border-primary text-primary" : "border-border text-muted-foreground"}`}>{s.name}</button>)}<button type="button" onClick={() => setExploreOpen(true)} className="rounded-full border border-border px-2.5 py-1 text-xs text-emerald-400">Explorar</button></div>
+            )}
+            {myContents.length > 0 && (
+              <div>
+                <p className={head}>Meus conteúdos</p>
+                {myContents.map((p) => (
+                  <Link key={p.id} to="/evento/$id" params={{ id: p.id }} className="mx-2 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground" title="Abrir o conteúdo (chat e voz dele ficam na página)">
+                    <Swords className="h-4 w-4 shrink-0 text-gold" />
+                    <span className="min-w-0 flex-1"><span className="block truncate font-semibold text-foreground">{p.title}</span><span className="block truncate text-[11px]">{formatDate(p.starts_at)}{p.status === "waitlist" ? " · na fila" : ""}</span></span>
+                  </Link>
+                ))}
+              </div>
             )}
             <div>
               <div className="flex items-center pr-2"><p className={`${head} flex-1`}>Texto</p>{mod && <button type="button" onClick={() => setNewKind("text")} aria-label="Novo canal de texto" className="rounded p-1 text-muted-foreground hover:text-foreground"><Plus className="h-4 w-4" /></button>}</div>
