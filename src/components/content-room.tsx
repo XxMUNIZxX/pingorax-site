@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Hash, Headphones, HeadphoneOff, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Send, Settings, Trash2, Volume2 } from "lucide-react";
+import { Eraser, Hash, Headphones, HeadphoneOff, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Send, Settings, Trash2, Volume2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +11,7 @@ import { useVoice, type Person, type ScreenShare } from "@/components/use-voice"
 import { VoiceSettingsDialog } from "@/components/voice-settings-dialog";
 import { CHAT_MAX, cleanMessage, fetchChat, mergeMessages, sendChat, type ChatMessage } from "@/lib/chat";
 import { getVoiceStatus } from "@/lib/voice.functions";
+import { clearChat } from "@/lib/cleanup";
 import { chatTime, groupMessages, keyLabel, loadVoiceSettings, nickHue, nickInitial, saveVoiceSettings, volumeKey, type VoiceSettings } from "@/lib/voice-settings";
 
 const label = "px-3 pb-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground";
@@ -79,6 +80,7 @@ export function ContentRoom({ eventId, canModerate }: { eventId: string; canMode
   const voice = useVoice(eventId, settings);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const messages = chat.data ?? [];
 
@@ -119,6 +121,16 @@ export function ContentRoom({ eventId, canModerate }: { eventId: string; canMode
     } catch (err) {
       toast.error(err instanceof Error ? err.message : (err as { message?: string })?.message ?? "Não consegui enviar.");
     } finally { setSending(false); }
+  }
+
+  async function wipe() {
+    if (!window.confirm("Apagar todas as mensagens do chat deste conteúdo?")) return;
+    setClearing(true);
+    try {
+      await clearChat(eventId);
+      qc.setQueryData<ChatMessage[] | null>(chatKey, []);
+      toast.success("Chat limpo.");
+    } catch { toast.error("Não consegui limpar o chat."); } finally { setClearing(false); }
   }
 
   async function remove(id: string) {
@@ -189,6 +201,9 @@ export function ContentRoom({ eventId, canModerate }: { eventId: string; canMode
             <header className="flex flex-wrap items-center gap-x-2 border-b border-border px-4 py-2.5">
               <Hash className="h-4 w-4 text-muted-foreground" /><h3 className="font-bold">chat</h3>
               <span className="text-xs text-muted-foreground">ao vivo · só quem pingou escreve</span>
+              {canModerate && messages.length > 0 && (
+                <Button type="button" size="sm" variant="ghost" className="ml-auto h-7 text-xs text-muted-foreground hover:text-destructive" disabled={clearing} onClick={() => void wipe()}><Eraser /> Limpar chat</Button>
+              )}
             </header>
             {voice.screens.length > 0 && <div className="space-y-2 border-b border-border p-3">{voice.screens.map((s) => <ScreenView key={s.id} screen={s} />)}</div>}
             <div ref={listRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3" role="log" aria-live="polite">

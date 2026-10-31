@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMyNick } from "@/components/require-login";
 import { parseTrikyLoot } from "@/lib/triky";
+import { clearSessionDps, clearSessionItems } from "@/lib/cleanup";
 import { copyText } from "@/lib/share-text";
 import { WEAPON_ROLES, roleInfo } from "@/lib/weapon-roles";
 import { computeSplit, parseDpsPaste, parseLootPaste, parseSilver, splitSummaryText, type SplitConfig, type SplitPerson } from "@/lib/loot-split";
@@ -241,6 +242,9 @@ function ItemsBox({ session, canEdit, silverText, onSilver, total, run }: { sess
         <p className={label}>Loot</p>
         <p className="text-sm">Total <b className="text-amber-400">{fmt(total)}</b> de prata</p>
       </div>
+      {canEdit && session.items.length > 0 && (
+        <button type="button" className="mt-1 text-xs text-muted-foreground underline hover:text-destructive" onClick={() => { if (window.confirm(`Remover os ${session.items.length} itens desta sessão?`)) void run(async () => { await clearSessionItems(session.id); }); }}>Limpar itens</button>
+      )}
       <ul className="mt-2 divide-y divide-border/60 text-sm">
         {session.items.map((item) => (
           <li key={item.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-1.5">
@@ -300,7 +304,10 @@ function DpsBox({ session, canEdit, run }: { session: LootSession; canEdit: bool
 
   return (
     <div className={box}>
-      <p className={label}>Dps</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={label}>Dps</p>
+        {canEdit && rows.length > 0 && <button type="button" className="text-xs text-muted-foreground underline hover:text-destructive" onClick={() => { if (window.confirm("Zerar o dps desta sessão?")) void run(async () => { await clearSessionDps(session.id); }); }}>Zerar dps</button>}
+      </div>
       <ul className="mt-2 space-y-1.5 text-sm">
         {rows.map((r) => (
           <li key={r.nick} className="flex flex-wrap items-center gap-x-3 gap-y-1">

@@ -36,3 +36,13 @@ Depois é só ajustar o método de divisão e usar **Enviar ao Discord**.
 ## Histórico no perfil
 
 Ao **Fechar sessão**, o site salva a divisão final (quanto cada pessoa recebeu). Em **Meu perfil → Meu loot** cada jogador vê os conteúdos em que recebeu loot e o total. Reabrir a sessão apaga esse resultado até ela ser fechada de novo. Requer a migração `0023_loot_history.sql`.
+
+## Limpar para reutilizar o conteúdo
+
+Para usar o mesmo conteúdo de novo sem sobras da vez anterior:
+
+- **Chat:** botão **Limpar chat** no topo do chat (quem gerencia o conteúdo).
+- **Loot:** **Limpar itens** na sessão apaga só os itens; **Zerar dps** apaga só o dps; o botão de lixeira da sessão apaga a sessão inteira (quem edita).
+- **Tudo de uma vez:** no fim da página do conteúdo, **Reutilizar este conteúdo** → *Limpar chat*, *Limpar loot e dps* ou *Limpar tudo*.
+
+Quem pingou, as builds e a presença **não** são mexidas. Não dá para desfazer.
