@@ -22,7 +22,7 @@ jobs:
           code=${PIPESTATUS[0]}
           if [ "$code" != "0" ]; then
             # Mostra nas anotações do PR quais testes falharam (o log completo nem sempre dá para baixar).
-            msg=$(grep -E "FAIL|Error|expected|received|✗|×" test.log | head -25 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            msg=$(sed "s/\x1b\[[0-9;]*m//g" test.log | grep -A12 -E "FAIL|Transform failed" | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
             echo "::error title=Testes falharam::${msg}"
           fi
           exit $code
