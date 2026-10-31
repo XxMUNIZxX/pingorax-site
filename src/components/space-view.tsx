@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Copy, Crown, Eraser, Hash, Headphones, HeadphoneOff, LogOut, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Plus, Send, Settings, Shield, Trash2, UserPlus, Users, Volume2, X } from "lucide-react";
+import { Ban, Compass, Copy, Crown, Eraser, Hash, Headphones, HeadphoneOff, LogOut, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Plus, Send, Settings, Shield, Trash2, UserPlus, Users, Volume2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +16,7 @@ import { mergeMessages } from "@/lib/chat";
 import { chatTime, groupMessages, keyLabel, loadVoiceSettings, nickHue, saveVoiceSettings, type VoiceSettings } from "@/lib/voice-settings";
 import {
   SPACE_MESSAGE_MAX, canModerate, clearChannel, createChannel, createInvite, deleteChannel, deleteSpaceMessage, fetchChannels, fetchInvites, fetchSpaceMembers, fetchSpaceMessages,
-  inviteLink, removeMember, revokeInvite, sendSpaceMessage, setMemberRole, toMessage,
+  banMember, fetchOpenSpaces, inviteLink, joinOpenSpace, removeMember, revokeInvite, sendSpaceMessage, setMemberRole, toMessage,
   type Channel, type Space, type SpaceMember, type SpaceMessage,
 } from "@/lib/spaces";
 
@@ -40,6 +40,7 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [newKind, setNewKind] = useState<"text" | "voice" | null>(null);
+  const [exploreOpen, setExploreOpen] = useState(false);
   const status = useQuery({ queryKey: ["voice-status"], queryFn: () => getVoiceStatus(), staleTime: 10 * 60_000, retry: false });
   const channels = useQuery({ queryKey: ["channels", space?.id], queryFn: () => fetchChannels(space!.id), enabled: !!space });
   const members = useQuery({ queryKey: ["space-members", space?.id], queryFn: () => fetchSpaceMembers(space!.id), enabled: !!space });
@@ -63,8 +64,9 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
   if (!space) {
     return (
       <main className="mx-auto max-w-xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-extrabold">Sala da guilda</h1>
-        <p className="mt-3 text-muted-foreground">Você ainda não está em nenhuma guilda. Peça um link de convite a quem manda na sua guilda, ou crie a sua em <Link to="/criar" className="text-primary underline">Criar conteúdo</Link>.</p>
+        <h1 className="text-2xl font-extrabold">Sala</h1>
+        <p className="mt-3 text-muted-foreground">Você ainda não está em nenhum espaço. Entre num espaço público abaixo, peça um link de convite a quem manda na sua guilda ou crie a sua em <Link to="/criar" className="text-primary underline">Criar conteúdo</Link>.</p>
+        <div className="mt-6 text-left"><OpenSpaceList joined={[]} onJoined={(slug) => { write(GUILD_KEY, slug); void qc.invalidateQueries({ queryKey: ["spaces", userId] }); }} /></div>
       </main>
     );
   }
@@ -101,6 +103,7 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
               className={`grid h-11 w-11 place-items-center text-sm font-extrabold text-white transition-all ${s.id === space.id ? "rounded-xl ring-2 ring-primary" : "rounded-full opacity-80 hover:rounded-xl hover:opacity-100"}`}
               style={{ background: `hsl(${nickHue(s.name)} 45% 32%)` }}>{s.name.slice(0, 2).toUpperCase()}</button>
           ))}
+          <button type="button" onClick={() => setExploreOpen(true)} title="Explorar espaços públicos" aria-label="Explorar espaços públicos" className="grid h-11 w-11 place-items-center rounded-full bg-secondary/60 text-emerald-400 hover:rounded-xl"><Compass className="h-5 w-5" /></button>
         </nav>
 
         {/* 2. canais */}
@@ -111,8 +114,8 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
             {space.role !== "owner" && <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => void leaveGuild()} aria-label="Sair da guilda"><LogOut /></Button>}
           </div>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3">
-            {spaces.length > 1 && (
-              <div className="flex flex-wrap gap-1.5 px-3 md:hidden">{spaces.map((s) => <button key={s.id} type="button" onClick={() => pickGuild(s)} className={`rounded-full border px-2.5 py-1 text-xs ${s.id === space.id ? "border-primary text-primary" : "border-border text-muted-foreground"}`}>{s.name}</button>)}</div>
+            {(
+              <div className="flex flex-wrap gap-1.5 px-3 md:hidden">{spaces.map((s) => <button key={s.id} type="button" onClick={() => pickGuild(s)} className={`rounded-full border px-2.5 py-1 text-xs ${s.id === space.id ? "border-primary text-primary" : "border-border text-muted-foreground"}`}>{s.name}</button>)}<button type="button" onClick={() => setExploreOpen(true)} className="rounded-full border border-border px-2.5 py-1 text-xs text-emerald-400">Explorar</button></div>
             )}
             <div>
               <div className="flex items-center pr-2"><p className={`${head} flex-1`}>Texto</p>{mod && <button type="button" onClick={() => setNewKind("text")} aria-label="Novo canal de texto" className="rounded p-1 text-muted-foreground hover:text-foreground"><Plus className="h-4 w-4" /></button>}</div>
@@ -186,6 +189,12 @@ export function SpaceView({ userId, spaces }: { userId: string; spaces: Space[] 
       </section>
 
       <VoiceSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={settings} onChange={change} connected={voice.connected} />
+      <Dialog open={exploreOpen} onOpenChange={setExploreOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Espaços públicos</DialogTitle><DialogDescription>Qualquer pessoa logada pode entrar.</DialogDescription></DialogHeader>
+          <OpenSpaceList joined={spaces.map((s) => s.id)} onJoined={(slug) => { write(GUILD_KEY, slug); setGuildSlug(slug); setExploreOpen(false); void qc.invalidateQueries({ queryKey: ["spaces", userId] }); }} />
+        </DialogContent>
+      </Dialog>
       {mod && <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} guildId={space.id} />}
       <NewChannelDialog kind={newKind} onClose={() => setNewKind(null)} guildId={space.id} onCreated={() => void refreshChannels()} />
     </main>
@@ -205,6 +214,7 @@ function MemberRow({ m, guildId, myRole, meId, onChanged }: { m: SpaceMember; gu
         <PopoverContent className="w-56 space-y-2" align="end">
           <p className="truncate text-sm font-bold">{m.name}</p>
           {myRole === "owner" && <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => void run(() => setMemberRole(guildId, m.user_id, m.role === "mod" ? "member" : "mod"), m.role === "mod" ? "Agora é membro." : "Agora é moderador.")}><Shield /> {m.role === "mod" ? "Tirar de moderador" : "Tornar moderador"}</Button>}
+          <Button type="button" size="sm" variant="outline" className="w-full text-destructive hover:text-destructive" onClick={() => { if (window.confirm(`Banir ${m.name}? A pessoa sai e não consegue voltar.`)) void run(() => banMember(guildId, m.user_id), "Banido."); }}><Ban /> Banir</Button>
           <Button type="button" size="sm" variant="outline" className="w-full text-destructive hover:text-destructive" onClick={() => { if (window.confirm(`Remover ${m.name} da guilda?`)) void run(() => removeMember(guildId, m.user_id), "Removido da guilda."); }}><X /> Remover da guilda</Button>
         </PopoverContent>
       </Popover>
@@ -342,5 +352,28 @@ function NewChannelDialog({ kind, onClose, guildId, onCreated }: { kind: "text" 
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Espaços abertos ao público, com botão de entrar nos que a pessoa ainda não frequenta. */
+function OpenSpaceList({ joined, onJoined }: { joined: string[]; onJoined: (slug: string) => void }) {
+  const open = useQuery({ queryKey: ["open-spaces"], queryFn: fetchOpenSpaces, staleTime: 60_000 });
+  const [busy, setBusy] = useState<string | null>(null);
+  async function join(id: string) {
+    setBusy(id);
+    try { const slug = await joinOpenSpace(id); toast.success("Você entrou!"); onJoined(slug); } catch (e) { toast.error(err(e)); } finally { setBusy(null); }
+  }
+  if (open.isLoading) return <p className="text-sm text-muted-foreground">Carregando...</p>;
+  if (!open.data?.length) return <p className="text-sm text-muted-foreground">Nenhum espaço público por enquanto.</p>;
+  return (
+    <ul className="space-y-2">
+      {open.data.map((o) => (
+        <li key={o.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white" style={{ background: `hsl(${nickHue(o.name)} 45% 32%)` }}>{o.name.slice(0, 2).toUpperCase()}</span>
+          <span className="min-w-0 flex-1"><b className="block truncate">{o.name}</b>{o.description && <span className="block text-xs text-muted-foreground">{o.description}</span>}</span>
+          {joined.includes(o.id) ? <span className="text-xs text-muted-foreground">Você já está</span> : <Button type="button" size="sm" disabled={busy === o.id} onClick={() => void join(o.id)}>Entrar</Button>}
+        </li>
+      ))}
+    </ul>
   );
 }
