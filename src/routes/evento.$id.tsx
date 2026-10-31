@@ -18,8 +18,7 @@ import { roleInfo } from "@/lib/weapon-roles";
 import { fetchWaitlist } from "@/lib/waitlist";
 import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
-import { EventChat } from "@/components/event-chat";
-import { VoiceRoom } from "@/components/voice-room";
+import { ContentRoom } from "@/components/content-room";
 import { LootPanel } from "@/components/loot-panel";
 import { MyNickProvider, PingGate, useMyNick } from "@/components/require-login";
 
@@ -279,8 +278,7 @@ function EventContent({ id }: { id: string }) {
           </ol>
         </section>
       )}
-      <VoiceRoom eventId={id} />
-      <EventChat eventId={id} canModerate={manager.data === true} />
+      <ContentRoom eventId={id} canModerate={manager.data === true} />
       <LootPanel eventId={id} canEdit={editor.data === true} participants={ev.signups.map((s) => ({ nick: s.nick, role: weapons.find((w) => w.id === s.weapon_id)?.role ?? null }))} />
     </main>
   );
