@@ -2,6 +2,9 @@
 
 export const roomName = (eventId: string) => `pingorax-${eventId}`;
 
+/** Sala permanente de um canal de voz da guilda. */
+export const channelRoomName = (channelId: string) => `pingorax-canal-${channelId}`;
+
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /** Quem entra na sala: o caller, quem gerencia o conteúdo e quem pingou (inscrito ou na fila), pelo nick do perfil. */

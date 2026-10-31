@@ -10,13 +10,13 @@ import { useMyNick } from "@/components/require-login";
 import { useVoice, type Person, type ScreenShare } from "@/components/use-voice";
 import { VoiceSettingsDialog } from "@/components/voice-settings-dialog";
 import { CHAT_MAX, cleanMessage, fetchChat, mergeMessages, sendChat, type ChatMessage } from "@/lib/chat";
-import { getVoiceStatus } from "@/lib/voice.functions";
+import { getVoiceStatus, getVoiceToken } from "@/lib/voice.functions";
 import { clearChat } from "@/lib/cleanup";
 import { chatTime, groupMessages, keyLabel, loadVoiceSettings, nickHue, nickInitial, saveVoiceSettings, volumeKey, type VoiceSettings } from "@/lib/voice-settings";
 
 const label = "px-3 pb-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground";
 
-function Avatar({ nick, size = 32, speaking = false }: { nick: string; size?: number; speaking?: boolean }) {
+export function Avatar({ nick, size = 32, speaking = false }: { nick: string; size?: number; speaking?: boolean }) {
   return (
     <span aria-hidden="true" className={`grid shrink-0 place-items-center rounded-full font-bold text-white ${speaking ? "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background" : ""}`}
       style={{ width: size, height: size, fontSize: size * 0.45, background: `hsl(${nickHue(nick)} 55% 38%)` }}>{nickInitial(nick)}</span>
@@ -24,7 +24,7 @@ function Avatar({ nick, size = 32, speaking = false }: { nick: string; size?: nu
 }
 
 /** Vídeo de uma tela compartilhada por outra pessoa. */
-function ScreenView({ screen }: { screen: ScreenShare }) {
+export function ScreenView({ screen }: { screen: ScreenShare }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -41,7 +41,7 @@ function ScreenView({ screen }: { screen: ScreenShare }) {
 }
 
 /** Uma pessoa na sala de voz. Clicar no nome abre o volume dela. */
-function PersonRow({ person, settings, onChange }: { person: Person; settings: VoiceSettings; onChange: (patch: Partial<VoiceSettings>) => void }) {
+export function PersonRow({ person, settings, onChange }: { person: Person; settings: VoiceSettings; onChange: (patch: Partial<VoiceSettings>) => void }) {
   const volume = settings.volumes[volumeKey(person.name)] ?? 1;
   const body = (
     <>
@@ -77,7 +77,7 @@ export function ContentRoom({ eventId, canModerate }: { eventId: string; canMode
   const chat = useQuery({ queryKey: chatKey, queryFn: () => fetchChat(eventId), retry: false });
   const [settings, setSettings] = useState<VoiceSettings>(loadVoiceSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const voice = useVoice(eventId, settings);
+  const voice = useVoice(eventId, () => getVoiceToken({ data: { eventId } }), settings);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);

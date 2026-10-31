@@ -154,6 +154,7 @@ function PanelNavigation() {
     <Button variant="ghost" size="sm" asChild><Link to="/lutas" activeProps={active}>Lutas</Link></Button>
     <Button variant="ghost" size="sm" asChild><Link to="/kills" activeProps={active}>Kills</Link></Button>
     {WORLD_MAP_ENABLED && <Button variant="ghost" size="sm" asChild><Link to="/mapa" activeProps={active}>Mapa</Link></Button>}
+    {session && <Button variant="ghost" size="sm" asChild><Link to="/sala" activeProps={active}>Sala</Link></Button>}
     <Button variant="ghost" size="sm" asChild><Link to="/criar" activeProps={active}>Criar conteúdo</Link></Button>
     {isAdmin && <Button variant="ghost" size="sm" asChild><Link to="/admin" activeProps={active}>Administração</Link></Button>}
   </nav>;
