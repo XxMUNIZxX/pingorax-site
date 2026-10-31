@@ -438,9 +438,9 @@ export type Database = {
         ]
       }
       loot_sessions: {
-        Row: { created_at: string; created_by: string; event_id: string; id: string; people: Json; silver: number; split_config: Json; status: string; title: string }
-        Insert: { created_at?: string; created_by?: string; event_id: string; id?: string; people?: Json; silver?: number; split_config?: Json; status?: string; title?: string }
-        Update: { created_at?: string; created_by?: string; event_id?: string; id?: string; people?: Json; silver?: number; split_config?: Json; status?: string; title?: string }
+        Row: { created_at: string; created_by: string; event_id: string; id: string; people: Json; result: Json | null; silver: number; split_config: Json; status: string; title: string }
+        Insert: { created_at?: string; created_by?: string; event_id: string; id?: string; people?: Json; result?: Json | null; silver?: number; split_config?: Json; status?: string; title?: string }
+        Update: { created_at?: string; created_by?: string; event_id?: string; id?: string; people?: Json; result?: Json | null; silver?: number; split_config?: Json; status?: string; title?: string }
         Relationships: [
           { foreignKeyName: "loot_sessions_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
         ]

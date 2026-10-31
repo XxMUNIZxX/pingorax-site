@@ -80,15 +80,57 @@ export async function createLootSession(eventId: string, title: string) {
   if (error) throw error;
 }
 
-export type SessionPatch = { title?: string; silver?: number; split?: SplitConfig; people?: PersonOverride[]; status?: "open" | "closed" };
+/** Resultado da divisão guardado ao fechar a sessão (quanto cada pessoa recebeu). */
+export type SessionResult = { total: number; rows: { nick: string; total: number }[] };
+
+export function normalizeResult(json: unknown): SessionResult | null {
+  if (!json || typeof json !== "object") return null;
+  const raw = json as { total?: unknown; rows?: unknown };
+  if (!Array.isArray(raw.rows)) return null;
+  const rows: SessionResult["rows"] = [];
+  for (const r of raw.rows) {
+    if (!r || typeof r !== "object") continue;
+    const { nick, total } = r as { nick?: unknown; total?: unknown };
+    if (typeof nick === "string" && nick.trim() && typeof total === "number" && Number.isFinite(total) && total >= 0) rows.push({ nick: nick.trim(), total: Math.floor(total) });
+  }
+  return { total: typeof raw.total === "number" && Number.isFinite(raw.total) ? Math.floor(raw.total) : rows.reduce((s, r) => s + r.total, 0), rows };
+}
+
+export type MyLootEntry = { sessionId: string; eventId: string; eventTitle: string; sessionTitle: string; at: string; mine: number };
+
+/** Quanto este nick recebeu em cada sessão fechada (ignora maiúsculas e minúsculas). */
+export function myShares(sessions: { id: string; event_id: string; title: string; created_at: string; result: unknown; events?: { title?: string } | null }[], nick: string): MyLootEntry[] {
+  const key = nick.trim().toLowerCase();
+  const out: MyLootEntry[] = [];
+  for (const s of sessions) {
+    const result = normalizeResult(s.result);
+    const row = result?.rows.find((r) => r.nick.toLowerCase() === key);
+    if (row) out.push({ sessionId: s.id, eventId: s.event_id, eventTitle: s.events?.title ?? "Conteúdo", sessionTitle: s.title, at: s.created_at, mine: row.total });
+  }
+  return out;
+}
+
+/** Histórico de loot do jogador. `null` quando a migração 0023 ainda não foi rodada. */
+export async function fetchMyLoot(nick: string): Promise<MyLootEntry[] | null> {
+  const { data, error } = await supabase.from("loot_sessions")
+    .select("id,event_id,title,created_at,result,events(title)")
+    .eq("status", "closed").not("result", "is", null).order("created_at", { ascending: false }).limit(200);
+  if (error) { if (isMissingLoot(error) || /result/i.test(error.message)) return null; throw error; }
+  return myShares((data ?? []) as unknown as Parameters<typeof myShares>[0], nick);
+}
+
+export type SessionPatch = { title?: string; silver?: number; split?: SplitConfig; people?: PersonOverride[]; status?: "open" | "closed"; result?: SessionResult | null };
 export async function saveLootSession(id: string, patch: SessionPatch) {
-  const update: { title?: string; silver?: number; split_config?: Json; people?: Json; status?: string } = {};
+  const update: { title?: string; silver?: number; split_config?: Json; people?: Json; status?: string; result?: Json | null } = {};
   if (patch.title !== undefined) update.title = patch.title.trim() || "Loot";
   if (patch.silver !== undefined) update.silver = Math.max(0, Math.floor(patch.silver));
   if (patch.split) update.split_config = patch.split as unknown as Json;
   if (patch.people) update.people = patch.people as unknown as Json;
   if (patch.status) update.status = patch.status;
-  const { error } = await supabase.from("loot_sessions").update(update).eq("id", id);
+  if (patch.result !== undefined) update.result = patch.result as unknown as Json | null;
+  let { error } = await supabase.from("loot_sessions").update(update).eq("id", id);
+  // Migração 0023 ainda não rodada: salva o resto sem o histórico.
+  if (error && "result" in update && /result/i.test(error.message)) { delete update.result; ({ error } = await supabase.from("loot_sessions").update(update).eq("id", id)); }
   if (error) throw error;
 }
 

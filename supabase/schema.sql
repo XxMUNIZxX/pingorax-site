@@ -1919,3 +1919,9 @@ begin
 end $$;
 revoke all on function public.logger_ingest(text, uuid, uuid, jsonb, jsonb, bigint) from public;
 grant execute on function public.logger_ingest(text, uuid, uuid, jsonb, jsonb, bigint) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Histórico de loot (migração 0023)
+-- ---------------------------------------------------------------------------
+
+alter table public.loot_sessions add column if not exists result jsonb;
