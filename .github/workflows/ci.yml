@@ -15,7 +15,17 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - name: Testes
-        run: bun run test
+        shell: bash
+        run: |
+          set +e
+          bun run test 2>&1 | tee test.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            # Mostra nas anotações do PR quais testes falharam (o log completo nem sempre dá para baixar).
+            msg=$(sed "s/\x1b\[[0-9;]*m//g" test.log | grep -A12 -E "FAIL|Transform failed" | head -40 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Testes falharam::${msg}"
+          fi
+          exit $code
       - name: Build
         run: bun run build
         env:

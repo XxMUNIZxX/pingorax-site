@@ -28,3 +28,5 @@ a sala simplesmente não aparece e o resto do site funciona normal.
 - **Ajustes de voz** (engrenagem): microfone e fone/caixa de som (troca na hora), teste de microfone com barra de nível, volume geral, supressão de ruído, cancelamento de eco, ajuste automático de ganho, e o modo do microfone: **aberto** ou **aperte para falar** (tecla à sua escolha e atraso ao soltar).
 - Os ajustes ficam salvos só no navegador de cada pessoa.
 - Limites do navegador: o "aperte para falar" só funciona com a aba do PingoraX em foco (não vale com o jogo na frente) e não dispara enquanto você digita no chat; escolher a saída de som funciona no Chrome e no Edge, não no Firefox e no Safari.
+
+O chat pode ser limpo para reutilizar o conteúdo (veja "Limpar para reutilizar o conteúdo" em `docs/LOOT.md`). A voz não guarda nada: ao sair da sala não sobra registro.

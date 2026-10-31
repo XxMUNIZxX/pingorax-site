@@ -20,6 +20,7 @@ import { copyText, eventInviteText } from "@/lib/share-text";
 import { SHARE_ORIGIN } from "@/lib/share-image";
 import { ContentRoom } from "@/components/content-room";
 import { LootPanel } from "@/components/loot-panel";
+import { ReuseBox } from "@/components/reuse-box";
 import { MyNickProvider, PingGate, useMyNick } from "@/components/require-login";
 
 export const Route = createFileRoute("/evento/$id")({
@@ -280,6 +281,7 @@ function EventContent({ id }: { id: string }) {
       )}
       <ContentRoom eventId={id} canModerate={manager.data === true} />
       <LootPanel eventId={id} canEdit={editor.data === true} participants={ev.signups.map((s) => ({ nick: s.nick, role: weapons.find((w) => w.id === s.weapon_id)?.role ?? null }))} />
+      <ReuseBox eventId={id} canClearChat={manager.data === true} canClearLoot={editor.data === true} />
     </main>
   );
 }
